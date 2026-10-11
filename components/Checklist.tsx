@@ -10,7 +10,6 @@ export function Checklist({ fields, profile }: { fields: FieldsConfig; profile: 
         <div className="space-y-2 py-4" aria-label="Profile progress">
             <div className="flex items-center justify-between text-xs font-semibold uppercase text-secondary">
                 <span>Profile progress</span>
-                <span className="rounded-full bg-growth/15 px-2.5 py-1 text-primary">{completed} of {total}</span>
             </div>
             <div
                 role="progressbar"

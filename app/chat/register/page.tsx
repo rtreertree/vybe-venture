@@ -7,13 +7,72 @@ import { Checklist } from "@/components/Checklist";
 import { useChat } from "@/hooks/useChat";
 import { saveProfile } from "@/actions/profile";
 
+function LoadingDots() {
+    return (
+        <span role="status" aria-label="Agent is responding" className="inline-flex h-6 w-10 items-center justify-between">
+            {[220, 0, 110].map((delay, dotIndex) => (
+                <span
+                    key={dotIndex}
+                    aria-hidden="true"
+                    className={`chat-typing-dot h-2 w-2 rounded-full ${["bg-accent", "bg-growth", "bg-secondary"][dotIndex]}`}
+                    style={{ animationDelay: `${delay}ms` }}
+                />
+            ))}
+        </span>
+    );
+}
+
+function StreamedText({ text, animate }: { text: string; animate: boolean }) {
+    const characters = Array.from(text);
+    const characterCount = characters.length;
+    const latestCountRef = useRef(characterCount);
+    const [visibleCount, setVisibleCount] = useState(() => animate ? 0 : characterCount);
+    const [wasAnimated] = useState(animate);
+
+    useEffect(() => {
+        latestCountRef.current = characterCount;
+    }, [characterCount]);
+
+    useEffect(() => {
+        if (!animate && visibleCount >= latestCountRef.current) return;
+        const timer = window.setInterval(() => {
+            setVisibleCount((current) => Math.min(current + 1, latestCountRef.current));
+        }, 5);
+        return () => window.clearInterval(timer);
+    }, [animate, visibleCount]);
+
+    if (!wasAnimated) return text;
+ 
+    const visibleText = characters.slice(0, visibleCount).join("");
+    const segments = Array.from(visibleText.matchAll(/\s+|\S+/gu));
+
+    return segments.map((match) => {
+        const segment = match[0];
+        const segmentStart = match.index ?? 0;
+        const segmentCharacters = Array.from(segment);
+
+        if (/^\s+$/u.test(segment)) {
+            return <span key={`space-${segmentStart}`}>{segment}</span>;
+        }
+
+        return (
+            <span key={`word-${segmentStart}`} className="chat-word">
+                {segmentCharacters.map((character, index) => (
+                    <span key={segmentStart + index} className="chat-character">
+                        {character}
+                    </span>
+                ))}
+            </span>
+        );
+    });
+}
+
 export default function ChatPage() {
     const router = useRouter();
     const [input, setInput] = useState("");
     const [pending, startTransition] = useTransition();
     const bottomRef = useRef<HTMLDivElement>(null);
 
-    // 1. the hook call
     const { fields, messages, state, isStreaming, isComplete, error, send, stop } = useChat({
         intake: "profile",
         initialMessages: [
@@ -41,7 +100,7 @@ export default function ChatPage() {
             <header className="border-b border-primary/10 bg-light-surface">
                 <div className="mx-auto flex h-16 w-full max-w-3xl items-center justify-between px-5 sm:px-8">
                     <Link href="/" className="font-display text-sm font-bold sm:text-base">
-                        MONEY, CLEARLY<span className="text-accent">.</span>
+                        AI Agent<span className="text-accent">.</span>
                     </Link>
                     <p className="inline-flex items-center gap-2 rounded-full border border-growth/30 bg-growth/10 px-3 py-2 text-xs font-semibold uppercase text-secondary">
                         <span className="h-2 w-2 rounded-full bg-growth" aria-hidden />
@@ -61,29 +120,12 @@ export default function ChatPage() {
                                 {m.role === "user" ? "You" : <><span className="h-1.5 w-1.5 rounded-full bg-growth" aria-hidden /> Money, Clearly</>}
                             </span>
                             <span className={`inline-block max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 sm:max-w-[75%] ${m.role === "user" ? "rounded-br-md bg-primary text-white" : "rounded-bl-md border border-primary/10 bg-white text-primary shadow-sm shadow-primary/5"}`}>
-                                {m.role === "assistant" && isStreaming && i === messages.length - 1 ? (
+                                {m.role === "assistant" && i === messages.length - 1 ? (
                                     m.content ? (
-                                        Array.from(m.content).map((character, charIndex) => (
-                                            <span
-                                                key={charIndex}
-                                                className="chat-character"
-                                                style={{ animationDelay: `${(charIndex % 12) * 38}ms` }}
-                                            >
-                                                {character}
-                                            </span>
-                                        ))
-                                    ) : (
-                                        <span role="status" aria-label="Agent is responding" className="inline-flex h-6 w-10 items-center justify-between">
-                                            {[220, 0, 110].map((delay, dotIndex) => (
-                                                <span
-                                                    key={dotIndex}
-                                                    aria-hidden="true"
-                                                    className={`chat-typing-dot h-2 w-2 rounded-full ${["bg-accent", "bg-growth", "bg-secondary"][dotIndex]}`}
-                                                    style={{ animationDelay: `${delay}ms` }}
-                                                />
-                                            ))}
-                                        </span>
-                                    )
+                                        <StreamedText text={m.content} animate={isStreaming} />
+                                    ) : isStreaming ? (
+                                        <LoadingDots />
+                                    ) : "…"
                                 ) : (
                                     m.content || "…"
                                 )}

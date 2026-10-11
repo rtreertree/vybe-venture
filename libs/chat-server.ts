@@ -20,6 +20,8 @@ function buildExtractPrompt(fields: FieldsConfig) {
         .map(([key, desc]) => `- ${key}: ${desc}`)
         .join("\n");
 
+    console.log("buildExtractPrompt", list);
+
     return `You analyze the LAST user message of an onboarding chat that collects these fields:
 ${list}
 
