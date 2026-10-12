@@ -3,7 +3,7 @@ import { openaiClient } from "@/libs/openai";
 import {
     MAX_RELATED,
     MAX_UNRELATED,
-    cleanStr,
+    sanitizeState,
     type ChatMessage,
     type ChatState,
     type FieldsConfig,
@@ -27,6 +27,7 @@ ${list}
 
 Extract only values the user explicitly states in their last message (corrections count). Use null for anything not stated. Never guess.
 Keep each value short, in the user's own words. If the user explicitly declines to share a field, store "prefer not to say" for it.
+For target_value, return a JSON number (not a string) when the user states a USD target amount between 0 and 100,000,000. Do not infer an amount from a vague goal.
 
 turn_type:
 - "answer": the message provides, or tries to provide, any requested info (even if it also contains a tangent)
@@ -43,7 +44,10 @@ async function analyze(
     const keys = Object.keys(fields);
 
     const properties: Record<string, unknown> = Object.fromEntries(
-        keys.map((k) => [k, { type: ["string", "null"], description: fields[k] }])
+        keys.map((k) => [k, {
+            type: k === "target_value" ? ["number", "null"] : ["string", "null"],
+            description: fields[k],
+        }])
     );
     properties.turn_type = { type: "string", enum: ["answer", "related", "unrelated"] };
 
@@ -88,11 +92,13 @@ function buildInstructions(opts: {
     const { fields, profile, captured, turnType, tangentAllowed, tangentsLeft } = opts;
     const keys = Object.keys(fields);
     const missing = keys.filter((k) => profile[k] === null);
-    const describe = (k: string) => `${k} (${fields[k]})`;
+    const describe = (k: string) => fields[k];
 
-    const base = `You are a warm, natural onboarding assistant collecting: ${keys
+    const base = `You are a warm, natural financial-planning onboarding assistant collecting: ${keys
         .map(describe)
-        .join("; ")}. Keep replies short (1-3 sentences), conversational, no lists, no emoji spam. Never invent user info. If a field is sensitive, ask gently and let the user know they may say "prefer not to say".`;
+        .join("; ")}. Keep replies short (1-3 sentences), conversational, no lists, no emoji spam. Never invent user info. Move at the user's pace: do not rush, make them feel they need to answer everything right away, or frame this as an interrogation. Ask only one item at a time and connect it naturally to what they have already shared. If they are unsure, need time, or give a rough answer, reassure them that an estimate is fine and they can revisit it later. If a field is sensitive, ask gently and let the user know they may say "prefer not to say".
+
+Internal field keys are never user-facing. Never write snake_case identifiers, database labels, or phrases such as "I recorded [field name]." Acknowledge what the person said in natural language when useful, then smoothly ask the next question. For example, say "Thanks for sharing that" rather than naming a field, and say "What do your regular expenses look like?" rather than using an internal label.`;
 
     if (missing.length === 0) {
         return `${base}
@@ -101,11 +107,11 @@ Warmly thank the user (use their name only if one of the values is clearly their
     }
 
     const next = missing[0];
-    const parts = [base, `Still missing: ${missing.join(", ")}. Next, ask about: ${describe(next)}.`];
+    const parts = [base, `Still missing: ${missing.map(describe).join("; ")}. Next, ask about: ${describe(next)}. Do not mention the full list of remaining questions.`];
 
     if (captured.length) {
         parts.push(
-            `Just captured: ${captured.join(", ")}. Acknowledge briefly and naturally, then ask for the next missing item (one item only).`
+            `The user just shared: ${captured.map(describe).join("; ")}. Acknowledge the substance briefly in plain language—without naming an internal field—then ask for the next missing item (one item only).`
         );
     }
 
@@ -156,10 +162,10 @@ export function createChatStream(
                 // 2. merge extracted values
                 const captured: string[] = [];
                 for (const key of Object.keys(fields)) {
-                    const v = cleanStr(analysis.values[key]);
-                    if (!v) continue;
-                    if (state.profile[key] !== v) captured.push(key);
-                    state.profile[key] = v;
+                    const value = sanitizeState({ profile: { [key]: analysis.values[key] } }, fields).profile[key];
+                    if (value === null) continue;
+                    if (state.profile[key] !== value) captured.push(key);
+                    state.profile[key] = value;
                 }
 
                 // 3. tangent budget (decided by code, not by the model)

@@ -20,6 +20,16 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Onboarding prototype storage
+
+Onboarding is a local prototype, not account registration. Completed details and in-progress drafts are stored in the current browser and are not synced to an account or another device. Browser storage is not secure; use sample values instead of real financial details and avoid shared devices. Chat and profile data are sent to the AI service configured for this project to generate and normalize responses. The onboarding completion page lets you clear the saved browser data.
+
+Saved account records use a versioned prototype schema. Personal details are stored once in `personal_profile`, separately from account-specific goals and planning. Target amounts are USD, and timeframes used by the What If calculator are stored as whole years. Existing version 1 account records are migrated in the browser: personal details are consolidated into the shared profile, and a legacy timeframe is converted only when it is an unambiguous whole number of years. Other free-text timeframe values remain unset rather than being guessed. If saved data is malformed or unavailable, the app reports the problem instead of treating the account list as empty; use the completion page's clear-and-restart action to reset prototype data.
+
+## Investment consulting preview
+
+Open `/consult` to select a locally saved account and review or update its goal, timeframe, target, and planning preferences. The News topic currently uses fictional demo briefs; it is not a live feed. What If compares an early withdrawal with leaving a hypothetical starting balance invested, using fixed -5%, 2%, 5%, and 8% annual return scenarios compounded monthly. The starting balance is an editable example, not a saved account balance. These scenarios are not probabilities; the comparison is illustrative only and excludes fees, taxes, inflation, and additional contributions. Account details and topic conversation history are stored in this browser, while consulting chat context and messages are sent to the configured AI service when you send a message.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

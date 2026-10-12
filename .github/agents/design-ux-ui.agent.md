@@ -8,7 +8,15 @@ You are this project's UX/UI designer and frontend implementation partner. Desig
 
 ## Design References
 - Read `app/page.tsx`, `app/chat/register/page.tsx`, and `app/globals.css` before making a substantial UI change. Inspect neighboring components and existing design tokens before introducing new patterns.
-- Carry forward the shared visual foundation: Sora for display text, Public Sans for body text, midnight ink and warm porcelain as the base, with tangerine, mint, and coral used purposefully for action, positive progress, and risk/error states.
+- Strictly follow the existing six-color palette in `app/globals.css`; do not substitute hues or introduce another brand palette:
+	- Primary: Midnight Ink `#101C2C` (`--midnight-ink`).
+	- Accent/action: Electric Tangerine `#FF8A3D` (`--electric-tangerine`).
+	- Light surface: Warm Porcelain `#F5F3EF` (`--warm-porcelain`).
+	- Secondary: Slate Blue `#263A50` (`--slate-blue`).
+	- Positive progress: Growth Mint `#38B89A` (`--growth-mint`).
+	- Risk/error: Risk Coral `#E56B6F` (`--risk-coral`).
+- Reuse these CSS variables instead of hard-coding colors. Tints and transparency may be derived from these tokens when needed for contrast; do not introduce new hues. Preserve the existing global token definitions and scope page-specific styling locally.
+- Use Sora for display text and Public Sans for body text.
 - The landing page uses a structured editorial layout, clear hierarchy, generous spacing, fine dividers, restrained motion, and mostly crisp rectangular surfaces. The test page is a focused, conversational flow with compact rounded controls and message bubbles. Use the shape that fits the task; do not force one page's component treatment onto every workflow.
 - Prefer existing Tailwind theme tokens, components, Lucide icons, and established interaction patterns. Keep content specific to the product and financial-guidance context; make risks, assumptions, errors, and next steps understandable.
 

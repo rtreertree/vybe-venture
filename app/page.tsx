@@ -1,5 +1,8 @@
 import { ArrowRight, BarChart3, Target, ShieldCheck, MessageCircle, Clock, Coins } from "lucide-react";
 import { CountUp, ScrollAnimations } from "@/components/scroll-animations";
+import { ResetUserDataButton } from "@/components/reset-user-data-button";
+import { MakePlanLink } from "../components/make-plan-link";
+import styles from "./home.module.css";
 
 const features = [
   {
@@ -49,7 +52,7 @@ const projection = [
 
 export default function Page() {
   return (
-    <div className="min-h-screen overflow-x-hidden bg-light-surface text-primary">
+    <div className={`${styles.home} min-h-screen overflow-x-hidden bg-light-surface text-primary`}>
       <ScrollAnimations />
       <header className="sticky top-0 z-30 border-b border-primary/10 bg-light-surface/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
@@ -61,9 +64,10 @@ export default function Page() {
             <a className="transition-colors hover:text-primary" href="#how-it-works">How it works</a>
             <a className="transition-colors hover:text-primary" href="#why-invest">Why plan</a>
           </nav>
-          <a href="#how-it-works" className="inline-flex min-h-10 items-center gap-2 bg-accent px-4 text-sm font-semibold text-primary transition-colors hover:bg-accent/90">
-            Make a plan <ArrowRight className="h-4 w-4" aria-hidden />
-          </a>
+          <div className="flex items-center gap-2">
+            <ResetUserDataButton />
+            <MakePlanLink />
+          </div>
         </div>
       </header>
 

@@ -4,8 +4,10 @@ import { useCallback, useRef, useState } from "react";
 import {
     emptyState,
     isComplete as checkComplete,
+    sanitizeState,
     type ChatMessage,
     type ChatState,
+    type Profile,
     type StreamEvent,
 } from "@/libs/chat-shared";
 import { INTAKE_CONFIGS, type IntakeId } from "@/libs/intake-configs";
@@ -27,6 +29,12 @@ export function useChat({ intake, initialMessages = [] }: Options) {
     const isComplete = checkComplete(state.profile);
 
     const stop = useCallback(() => abortRef.current?.abort(), []);
+
+    const hydrate = useCallback((profile: Profile, initialMessages: ChatMessage[], counters?: ChatState["counters"]) => {
+        setState(sanitizeState({ profile, counters }, fields));
+        setMessages(initialMessages);
+        setError(null);
+    }, [fields]);
 
     const appendToLast = (text: string) =>
         setMessages((prev) => {
@@ -87,5 +95,5 @@ export function useChat({ intake, initialMessages = [] }: Options) {
         [intake, messages, state, isStreaming, isComplete]
     );
 
-    return { fields, messages, state, isStreaming, isComplete, error, send, stop };
+    return { fields, messages, state, isStreaming, isComplete, error, send, stop, hydrate };
 }

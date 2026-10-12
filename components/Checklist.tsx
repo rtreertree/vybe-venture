@@ -9,11 +9,11 @@ export function Checklist({ fields, profile }: { fields: FieldsConfig; profile: 
     return (
         <div className="space-y-2 py-4" aria-label="Profile progress">
             <div className="flex items-center justify-between text-xs font-semibold uppercase text-secondary">
-                <span>Profile progress</span>
+                <span>Planning profile</span>
             </div>
             <div
                 role="progressbar"
-                aria-label="Profile completion"
+                aria-label="Planning profile completion"
                 aria-valuemin={0}
                 aria-valuemax={total}
                 aria-valuenow={completed}

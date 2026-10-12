@@ -2,7 +2,7 @@ export type ChatMessage = { role: "user" | "assistant"; content: string };
 
 /** { key: description } */
 export type FieldsConfig = Record<string, string>;
-export type Profile = Record<string, string | null>;
+export type Profile = Record<string, string | number | null>;
 export type Counters = { related: number; unrelated: number };
 export type ChatState = { profile: Profile; counters: Counters };
 
@@ -40,6 +40,21 @@ export const isComplete = (p: Profile) => {
 export const cleanStr = (v: unknown) =>
     typeof v === "string" && v.trim() ? v.trim().slice(0, 100) : null;
 
+const cleanProfileValue = (key: string, value: unknown): string | number | null => {
+    if (key === "target_value") {
+        return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100_000_000 ? value : null;
+    }
+
+    if (key === "age" && (typeof value === "string" || typeof value === "number")) {
+        const ageText = String(value).trim();
+        if (!/^\d+$/u.test(ageText)) return null;
+        const age = Number(ageText);
+        return Number.isInteger(age) && age >= 18 && age <= 120 ? String(age) : null;
+    }
+
+    return cleanStr(value);
+};
+
 /** "job_title" / "jobTitle" -> "Job title" */
 export const labelOf = (key: string) => {
     const spaced = key.replace(/[_-]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").trim();
@@ -57,7 +72,7 @@ export function sanitizeState(raw: unknown, fields: FieldsConfig): ChatState {
     const c = isRecord(root.counters) ? root.counters : {};
 
     for (const key of Object.keys(fields)) {
-        s.profile[key] = cleanStr(p[key]);
+        s.profile[key] = cleanProfileValue(key, p[key]);
     }
 
     const clamp = (n: unknown, max: number) =>
