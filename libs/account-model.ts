@@ -61,6 +61,8 @@ export type AccountRecord = {
   assetExamples: AssetExamples | null;
 };
 
+export type AccountPlanDraft = Pick<AccountRecord, "accountName" | "goal" | "timeframeYears" | "planning">;
+
 export type LegacyAccountRecord = {
   schemaVersion: 1;
   id: string;
@@ -99,6 +101,17 @@ export function isAccountPlanning(value: unknown): value is AccountPlanning {
     && (value.riskAttitude === null || isBoundedString(value.riskAttitude, 1_000))
     && (value.preferredProducts === null || isBoundedString(value.preferredProducts, 1_000))
     && (value.excludedIndustries === null || isBoundedString(value.excludedIndustries, 1_000));
+}
+
+export function isAccountPlanDraft(value: unknown): value is AccountPlanDraft {
+  return isRecord(value)
+    && isBoundedString(value.accountName, 100)
+    && value.accountName.trim().length > 0
+    && isBoundedString(value.goal, 300)
+    && value.goal.trim().length > 0
+    && (value.timeframeYears === null
+      || (Number.isInteger(value.timeframeYears) && Number(value.timeframeYears) >= 1 && Number(value.timeframeYears) <= 50))
+    && isAccountPlanning(value.planning);
 }
 
 export function isPersonalProfile(value: unknown): value is PersonalProfile {

@@ -59,6 +59,16 @@ function planningFromProfile(profile: Profile): AccountPlanning {
     };
 }
 
+function timeframeYearsFromProfile(profile: Profile) {
+    const timeframe = profile.timeframe;
+    if (typeof timeframe !== "string") return null;
+
+    const match = /^\s*(\d{1,2})\s*(?:years?|yrs?)?\s*$/iu.exec(timeframe);
+    if (!match) return null;
+    const years = Number(match[1]);
+    return Number.isInteger(years) && years >= 1 && years <= 50 ? years : null;
+}
+
 function restoreMessages(value: unknown): ChatMessage[] {
     if (!Array.isArray(value)) return [];
 
@@ -227,6 +237,7 @@ export default function ChatPage() {
                 income_sources: "What are your sources of income?",
                 main_expenses: "What regular expenses or financial commitments should we keep in mind?",
                 target_value: "What amount in USD are you hoping this account will reach?",
+                timeframe: "About how many years do you expect to keep this money in the account before using it? A rough estimate is fine.",
                 liquidity_needs: "When might you need access to this money?",
                 loss_reaction: "How might you feel if this account temporarily lost value?",
                 risk_attitude: "How comfortable are you with investment risk?",
@@ -311,7 +322,7 @@ export default function ChatPage() {
                 id: accountId,
                 accountName,
                 goal: accountGoal,
-                timeframeYears: null,
+                timeframeYears: timeframeYearsFromProfile(sanitized.planning),
                 planning: planningFromProfile(sanitized.planning),
                 createdAt: new Date().toISOString(),
                 selectedProducts: [],

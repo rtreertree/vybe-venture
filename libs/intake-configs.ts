@@ -11,6 +11,7 @@ export const INTAKE_CONFIGS = {
         income_sources: "The user's sources of income. They may list several, such as salary, freelance work, business income, investments, or benefits.",
         main_expenses: "The user's main regular expenses or financial commitments, in their own words.",
         target_value: "The target amount in USD the user wants this account to reach (from 0 to 100,000,000). Store the amount as a number without a currency symbol or commas.",
+        timeframe: "The number of whole years (1 to 50) the user expects to keep money in this account before using it. When explicitly stated, store the number as a string; do not infer it from their goal.",
         liquidity_needs: "How soon the user may need to access money in this account and how much flexibility they need.",
         loss_reaction: "How the user thinks they would react if this account temporarily lost value.",
         risk_attitude: "The user's overall comfort with investment risk, in their own words.",

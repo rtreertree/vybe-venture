@@ -37,6 +37,7 @@ Return every field in the schema. Preserve the user's meaning; never invent fina
 
 Rules:
 - Keep target_value as a USD amount between 0 and 100,000,000.
+- Keep timeframe as an explicitly stated whole number of years between 1 and 50, represented as a string. Do not infer it from the user's goal or circumstances.
 - Preserve explicit uncertainty (for example, "I'm unsure" becomes "Unsure") and explicit privacy choices (for example, "prefer not to say").
 - If a value is put in the wrong field but its meaning is clear, move it to the appropriate field and use "No exclusions specified" or "No preference specified" for the source field when that is the truthful result.
 - In particular, a positive statement about a product or industry belongs in preferred_products, not excluded_industries. If it is the only excluded_industries input, use "No exclusions specified" there.

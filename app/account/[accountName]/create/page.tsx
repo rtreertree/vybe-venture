@@ -2,14 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ArrowLeft, Check, ChevronRight, CircleDollarSign, Eye, MessageCircle, Scale, Sparkles } from "lucide-react";
+import { AccountPlanAdjustment } from "@/components/account-plan-adjustment";
 import { accountSlug, createAccountId, readAccounts, updateAccountRecord } from "@/libs/account-client";
 import { isAssetExamples, type AccountPlanning, type AccountRecord, type AssetExample, type AssetExamples } from "@/libs/account-model";
 
 type Asset = AssetExample;
 type AssetResult = AssetExamples;
 type StoredOnboarding = {
-  account: Pick<AccountRecord, "id" | "accountName" | "goal">;
+  account: AccountRecord;
   planning: AccountPlanning;
   assetExamples: AssetExamples | null;
   selectedProducts: AccountRecord["selectedProducts"];
@@ -39,7 +41,7 @@ function readAccountForCurrentRoute(): { ok: true; onboarding: StoredOnboarding 
   return {
     ok: true,
     onboarding: {
-      account: { id: matchingAccount.id, accountName: matchingAccount.accountName, goal: matchingAccount.goal },
+      account: matchingAccount,
       planning: matchingAccount.planning,
       assetExamples: matchingAccount.assetExamples,
       selectedProducts: matchingAccount.selectedProducts,
@@ -48,6 +50,7 @@ function readAccountForCurrentRoute(): { ok: true; onboarding: StoredOnboarding 
 }
 
 export default function CreateAccountPage() {
+  const pathname = usePathname();
   const [onboarding, setOnboarding] = useState<StoredOnboarding | null>(null);
   const [result, setResult] = useState<AssetResult | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
@@ -59,6 +62,7 @@ export default function CreateAccountPage() {
   const [accountLoadError, setAccountLoadError] = useState("");
   const [savedMessage, setSavedMessage] = useState("");
   const [reloadAccount, setReloadAccount] = useState(0);
+  const [isAdjustingPlan, setIsAdjustingPlan] = useState(false);
 
   const routeName = "your account";
   const accountName = typeof onboarding?.account?.accountName === "string" ? onboarding.account.accountName : routeName;
@@ -132,7 +136,7 @@ export default function CreateAccountPage() {
       else void generate(stored);
     }, 0);
     return () => window.clearTimeout(timeout);
-  }, [generate, reloadAccount]);
+  }, [generate, pathname, reloadAccount]);
 
   const categories = useMemo(() => ["All", ...new Set((result?.assets ?? []).map((asset) => asset.category))], [result]);
   const visibleAssets = result?.assets.filter((asset) => category === "All" || asset.category === category) ?? [];
@@ -170,10 +174,26 @@ export default function CreateAccountPage() {
           <Link href="/account/register?new=1" className="text-sm font-semibold text-secondary transition-colors hover:text-primary">New Portfolio</Link>
         </div>
       </header>
-      <main>
+      {isAdjustingPlan && onboarding?.account ? (
+        <AccountPlanAdjustment
+          account={onboarding.account}
+          onClose={() => setIsAdjustingPlan(false)}
+          onSaved={() => {
+            setIsAdjustingPlan(false);
+            setReloadAccount((value) => value + 1);
+          }}
+        />
+      ) : <main>
         <section className="border-b border-primary/10 bg-primary px-5 py-12 text-white sm:px-8 sm:py-16">
           <div className="mx-auto max-w-7xl">
-            <Link href="/chat/register" className="inline-flex items-center gap-2 text-sm font-semibold text-white/70 transition-colors hover:text-white"><ArrowLeft className="h-4 w-4" aria-hidden /> Back to your plan</Link>
+            <button
+              type="button"
+              disabled={!onboarding?.account}
+              onClick={() => setIsAdjustingPlan(true)}
+              className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-white/70 transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden /> Back to your plan
+            </button>
             <div className="mt-8 grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
               <div>
                 <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-accent"><Sparkles className="h-4 w-4" aria-hidden /> Your account, taking shape</p>
@@ -230,7 +250,7 @@ export default function CreateAccountPage() {
             {(compared.length > 0 || selectionHasChanged) && <section className="mt-12 border border-primary/15 bg-white p-5 sm:p-7" aria-labelledby="compare-title"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.12em] text-secondary">Side-by-side</p><h2 id="compare-title" className="mt-2 flex items-center gap-2 font-display text-2xl font-bold"><Scale className="h-5 w-5 text-accent" aria-hidden /> Compare your choices</h2></div><p className="text-sm text-ink/65">Choose up to two products to compare.</p></div>{compared.length > 0 ? <div className="mt-6 overflow-x-auto"><table className="w-full min-w-150 text-left text-sm"><thead><tr className="border-b border-primary/15"><th className="pb-3 pr-6 font-semibold text-secondary">Detail</th>{compared.map((asset) => <th key={asset.id} className="pb-3 pr-6 font-display text-base font-bold">{asset.name}</th>)}</tr></thead><tbody>{[["Risk", "risk"], ["Time horizon", "time_horizon"], ["Liquidity", "liquidity"], ["Cost", "cost"], ["Why it may fit", "why_it_may_fit"], ["What to watch", "what_to_watch"]].map(([label, key]) => <tr key={label} className="border-b border-primary/10 last:border-0"><th className="py-4 pr-6 align-top font-semibold text-secondary">{label}</th>{compared.map((asset) => <td key={asset.id} className="py-4 pr-6 align-top leading-6 text-ink/75">{asset[key as keyof Asset]}</td>)}</tr>)}</tbody></table></div> : <p className="mt-5 text-sm leading-6 text-ink/70">No products are selected. Save to clear the product choices previously stored for this account.</p>}<button type="button" onClick={saveSelections} className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 bg-growth px-5 text-sm font-semibold text-primary hover:bg-growth/90"><Check className="h-4 w-4" aria-hidden /> {compared.length ? "Save product choices" : "Clear saved product choices"}</button></section>}
           </div>
         </section>
-      </main>
+      </main>}
       {active && <div className="fixed inset-0 z-50 flex items-end bg-primary/45 p-4 sm:items-center sm:justify-center" role="dialog" aria-modal="true" aria-labelledby="asset-title"><div className="w-full max-w-lg bg-white p-6 shadow-2xl"><div className="flex items-start justify-between gap-6"><div><p className="text-xs font-bold uppercase tracking-[0.12em] text-secondary">{active.category}</p><h2 id="asset-title" className="mt-2 font-display text-2xl font-bold">{active.name}</h2></div><button onClick={() => setActive(null)} className="text-sm font-semibold text-secondary hover:text-primary">Close</button></div><p className="mt-5 leading-7 text-ink/75">{active.summary}</p><dl className="mt-6 space-y-4 border-y border-primary/10 py-5 text-sm"><div><dt className="font-semibold">Why it may fit</dt><dd className="mt-1 leading-6 text-ink/70">{active.why_it_may_fit}</dd></div><div><dt className="font-semibold">What to watch</dt><dd className="mt-1 leading-6 text-ink/70">{active.what_to_watch}</dd></div></dl><button onClick={() => { toggle(active.id); setActive(null); }} className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 bg-accent px-4 font-semibold hover:bg-accent/90">{selected.includes(active.id) ? "Remove from choices" : "Choose to compare"}<ChevronRight className="h-4 w-4" aria-hidden /></button></div></div>}
       <footer className="border-t border-primary/10 bg-primary px-5 py-7 text-white sm:px-8"><div className="mx-auto max-w-7xl text-xs leading-5 text-white/65">Illustrative educational examples only. Investing involves risk, including possible loss of principal. This page does not provide financial advice.</div></footer>
     </div>

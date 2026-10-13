@@ -1,7 +1,7 @@
 "use client";
 
-import { type FormEvent, useEffect, useState } from "react";
-import { ArrowUp, Trash2 } from "lucide-react";
+import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { ArrowUp, RotateCcw, Trash2 } from "lucide-react";
 import type { AccountRecord } from "@/libs/account-client";
 
 export type ConsultingTopic = "general" | "details" | "news" | "what-if";
@@ -16,28 +16,42 @@ type Props = {
 
 const MAX_MESSAGE_LENGTH = 1_500;
 
-const promptSuggestions: Record<ConsultingTopic, string[]> = {
-  general: [
-    "How should I think about this goal?",
-    "What trade-offs matter most here?",
-    "What would you watch before choosing an investment approach?",
-  ],
-  details: [
-    "How does my timeframe change the plan?",
-    "What should I consider about risk tolerance here?",
-    "How would liquidity needs affect this goal?",
-  ],
-  news: [
-    "What does this brief mean for a longer-term goal?",
-    "How might this theme affect a plan with a short timeframe?",
-    "What should I watch for when reading this example?",
-  ],
-  "what-if": [
-    "How should I think about this withdrawal choice?",
-    "What would make this scenario more or less risky?",
-    "What is the main trade-off in this comparison?",
-  ],
-};
+type StorageIssue = "read" | "invalid" | "save" | "clear" | null;
+
+function promptSuggestions(topic: ConsultingTopic, account: AccountRecord, context: string) {
+  const goal = account.goal.trim() || "this account's goal";
+  const timeframe = account.timeframeYears === null ? "" : `${account.timeframeYears}-year`;
+  const riskPreference = account.planning.riskAttitude || account.planning.lossReaction;
+  const liquidity = account.planning.liquidityNeeds;
+  const briefHeadline = context.match(/Headline:\s*(.+?)(?:\.\s*Summary:|$)/)?.[1]?.trim();
+
+  if (topic === "details") {
+    return [
+      `How do my account details support ${goal}?`,
+      timeframe ? `How should my ${timeframe} timeframe shape this plan?` : "What timeframe should I consider for this goal?",
+      riskPreference ? "How does my stated comfort with risk affect the trade-offs?" : "What should I consider about risk for this goal?",
+    ];
+  }
+  if (topic === "news") {
+    return [
+      briefHeadline ? `How could “${briefHeadline.slice(0, 75)}” relate to ${goal}?` : `What could this brief mean for ${goal}?`,
+      timeframe ? `How might this theme matter over my ${timeframe} timeframe?` : "What should I watch for when considering this theme?",
+      "What can this fictional example tell me—and what can’t it?",
+    ];
+  }
+  if (topic === "what-if") {
+    return [
+      `How could this withdrawal affect my goal of ${goal}?`,
+      timeframe ? `How does my ${timeframe} timeframe change this comparison?` : "What assumptions matter most in this comparison?",
+      liquidity ? "How should my cash-access needs affect this choice?" : "What trade-offs should I weigh before withdrawing?",
+    ];
+  }
+  return [
+    `What should I consider first for ${goal}?`,
+    timeframe ? `How does my ${timeframe} timeframe shape this goal?` : "What timeframe should I plan around?",
+    riskPreference ? "How does my comfort with risk affect the trade-offs?" : "What trade-offs matter most for this account?",
+  ];
+}
 
 function parseMessageList(value: unknown): Message[] | null {
   if (!Array.isArray(value) || value.length > 30) return null;
@@ -70,46 +84,72 @@ export function ConsultingChat({ account, topic, context = "", sessionScope = "a
   const [isReady, setIsReady] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState("");
-  const [storageError, setStorageError] = useState("");
+  const [storageIssue, setStorageIssue] = useState<StorageIssue>(null);
+  const [confirmingClear, setConfirmingClear] = useState(false);
+  const messageListRef = useRef<HTMLDivElement>(null);
 
-  const suggestedPrompts = promptSuggestions[topic];
+  const suggestedPrompts = promptSuggestions(topic, account, context);
 
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
+  const restoreConversation = useCallback(() => {
+    try {
+      const saved = window.localStorage.getItem(storageKey);
+      if (!saved) {
+        setMessages([openingMessage(topic, account.accountName)]);
+        setStorageIssue(null);
+        return;
+      }
+
+      let parsed: unknown;
       try {
-        const saved = window.localStorage.getItem(storageKey);
-        const parsed: unknown = saved ? JSON.parse(saved) : null;
-        setMessages(parseMessageList(parsed) ?? [openingMessage(topic, account.accountName)]);
-        setStorageError("");
+        parsed = JSON.parse(saved);
       } catch {
         setMessages([openingMessage(topic, account.accountName)]);
-        setStorageError("Conversation history could not be read or saved in this browser.");
-      } finally {
-        setIsReady(true);
+        setStorageIssue("invalid");
+        return;
       }
-    }, 0);
-    return () => window.clearTimeout(timeout);
+      const restoredMessages = parseMessageList(parsed);
+      if (!restoredMessages) {
+        setMessages([openingMessage(topic, account.accountName)]);
+        setStorageIssue("invalid");
+        return;
+      }
+      setMessages(restoredMessages.length ? restoredMessages : [openingMessage(topic, account.accountName)]);
+      setStorageIssue(null);
+    } catch {
+      setMessages([openingMessage(topic, account.accountName)]);
+      setStorageIssue("read");
+    } finally {
+      setIsReady(true);
+    }
   }, [account.accountName, storageKey, topic]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(restoreConversation, 0);
+    return () => window.clearTimeout(timeout);
+  }, [restoreConversation]);
+
+  useEffect(() => {
+    if (isReady && messageListRef.current) {
+      messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
+    }
+  }, [error, isReady, isSending, messages, storageIssue]);
 
   const commitMessages = (nextMessages: Message[]) => {
     const boundedMessages = nextMessages.slice(-30);
     setMessages(boundedMessages);
     try {
       window.localStorage.setItem(storageKey, JSON.stringify(boundedMessages));
-      setStorageError("");
+      setStorageIssue(null);
     } catch {
-      setStorageError("Conversation history could not be saved in this browser.");
+      setStorageIssue("save");
     }
   };
 
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const sendMessage = async () => {
     const text = input.trim().slice(0, MAX_MESSAGE_LENGTH);
     if (!text || isSending || !isReady) return;
 
     const nextMessages = [...messages, { role: "user" as const, content: text }].slice(-30);
-    commitMessages(nextMessages);
-    setInput("");
     setError("");
     setIsSending(true);
 
@@ -136,17 +176,30 @@ export function ConsultingChat({ account, topic, context = "", sessionScope = "a
           context,
         }),
       });
-      if (!response.ok) throw new Error(`The assistant request failed (${response.status}).`);
+      if (!response.ok) {
+        if (response.status === 429) throw new Error("There have been several requests recently. Wait a moment, then retry your message.");
+        if (response.status >= 500) throw new Error("The assistant is temporarily unavailable. Your message is still here; please retry.");
+        throw new Error("Your message could not be processed. Review it and try again.");
+      }
       const result: unknown = await response.json();
-      if (typeof result !== "object" || result === null || typeof (result as { reply?: unknown }).reply !== "string") {
+      if (typeof result !== "object" || result === null || typeof (result as { reply?: unknown }).reply !== "string" || !(result as { reply: string }).reply.trim()) {
         throw new Error("The assistant returned an invalid response.");
       }
       commitMessages([...nextMessages, { role: "assistant", content: (result as { reply: string }).reply }]);
+      setInput("");
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Unable to send your message.");
+      const message = requestError instanceof Error && requestError.name === "Error" && requestError.message
+        ? requestError.message
+        : "We couldn't connect to the assistant. Your message is still here; please retry.";
+      setError(`${message} Your message remains in the input below.`);
     } finally {
       setIsSending(false);
     }
+  };
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void sendMessage();
   };
 
   const clearConversation = () => {
@@ -154,10 +207,35 @@ export function ConsultingChat({ account, topic, context = "", sessionScope = "a
       window.localStorage.removeItem(storageKey);
       setMessages([openingMessage(topic, account.accountName)]);
       setError("");
-      setStorageError("");
+      setStorageIssue(null);
+      setConfirmingClear(false);
     } catch {
-      setStorageError("Conversation history could not be cleared in this browser.");
+      setStorageIssue("clear");
     }
+  };
+
+  const retryStorage = () => {
+    if (storageIssue === "read") {
+      restoreConversation();
+      return;
+    }
+    if (storageIssue === "save") {
+      try {
+        window.localStorage.setItem(storageKey, JSON.stringify(messages));
+        setStorageIssue(null);
+      } catch {
+        setStorageIssue("save");
+      }
+      return;
+    }
+    clearConversation();
+  };
+
+  const storageMessage: Record<Exclude<StorageIssue, null>, string> = {
+    read: "Conversation history could not be read. You can keep chatting, but saved history may not be available.",
+    invalid: "The saved conversation is unreadable. Start fresh to remove the unreadable history.",
+    save: "This conversation is available here, but changes could not be saved in this browser.",
+    clear: "Saved conversation history could not be cleared. Your messages are still available here.",
   };
 
   return (
@@ -169,14 +247,26 @@ export function ConsultingChat({ account, topic, context = "", sessionScope = "a
             Ask about {account.accountName}
           </h2>
         </div>
-        <button
-          type="button"
-          onClick={clearConversation}
-          disabled={!isReady || isSending}
-          className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 px-2 text-sm font-semibold text-secondary underline decoration-secondary/30 underline-offset-4 hover:text-primary disabled:opacity-50 sm:w-auto"
-        >
-          <Trash2 className="h-4 w-4" aria-hidden /> Clear conversation
-        </button>
+        {confirmingClear ? (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <span className="text-xs text-secondary">Remove this conversation and its saved history?</span>
+            <button type="button" onClick={() => setConfirmingClear(false)} className="min-h-11 px-3 text-sm font-semibold text-secondary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+              Cancel
+            </button>
+            <button type="button" onClick={clearConversation} disabled={!isReady || isSending} className="min-h-11 rounded-lg bg-risk px-3 text-sm font-semibold text-white hover:bg-risk/90 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+              Clear it
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirmingClear(true)}
+            disabled={!isReady || isSending}
+            className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 px-2 text-sm font-semibold text-secondary underline decoration-secondary/30 underline-offset-4 hover:text-primary disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent sm:w-auto"
+          >
+            <Trash2 className="h-4 w-4" aria-hidden /> Clear conversation
+          </button>
+        )}
       </div>
 
       <div className="border-b border-primary/10 bg-light-surface/70 px-3 py-3 sm:px-4">
@@ -186,7 +276,8 @@ export function ConsultingChat({ account, topic, context = "", sessionScope = "a
               key={prompt}
               type="button"
               onClick={() => setInput(prompt)}
-              className="rounded-full border border-primary/15 bg-white px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:border-primary/30 hover:bg-primary/5"
+              disabled={!isReady || isSending}
+              className="min-h-9 rounded-full border border-primary/15 bg-white px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
             >
               {prompt}
             </button>
@@ -194,9 +285,9 @@ export function ConsultingChat({ account, topic, context = "", sessionScope = "a
         </div>
       </div>
 
-      <div className="max-h-[28rem] min-w-0 space-y-4 overflow-y-auto px-4 py-5 sm:px-6" aria-live="polite" aria-relevant="additions text">
+      <div ref={messageListRef} className="max-h-[28rem] min-w-0 space-y-4 overflow-y-auto px-4 py-5 sm:px-6" aria-live="polite" aria-relevant="additions text">
         {!isReady && <p role="status" className="text-sm text-secondary">Restoring this conversation…</p>}
-        {messages.map((message, index) => (
+        {isReady && messages.map((message, index) => (
           <div key={`${index}-${message.role}`} className={`flex min-w-0 ${message.role === "user" ? "justify-end" : "justify-start"}`}>
             <p className={`max-w-[88%] wrap-anywhere whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 ${message.role === "user" ? "bg-primary text-white" : "border border-primary/10 bg-light-surface text-primary"}`}>
               <span className="sr-only">{message.role === "user" ? "You: " : "Assistant: "}</span>
@@ -204,9 +295,28 @@ export function ConsultingChat({ account, topic, context = "", sessionScope = "a
             </p>
           </div>
         ))}
+        {isSending && input.trim() && (
+          <div className="flex min-w-0 justify-end">
+            <p className="max-w-[88%] wrap-anywhere whitespace-pre-wrap rounded-2xl bg-primary px-4 py-3 text-sm leading-6 text-white">
+              <span className="sr-only">You, sending: </span>{input.trim()}
+              <span className="mt-1 block text-right text-xs text-white/70">Sending…</span>
+            </p>
+          </div>
+        )}
         {isSending && <p role="status" className="text-sm text-secondary">Preparing an educational response…</p>}
-        {error && <p role="alert" className="text-sm font-medium text-risk">{error}</p>}
-        {storageError && <p role="status" className="text-sm text-secondary">{storageError}</p>}
+        {error && <p id={`consult-error-${account.id}-${topic}`} role="alert" className="text-sm font-medium text-risk">{error}</p>}
+        {storageIssue && (
+          <div className="flex flex-wrap items-center gap-2 text-sm text-secondary" role="status">
+            <span>{storageMessage[storageIssue]}</span>
+            <button
+              type="button"
+              onClick={retryStorage}
+              className="min-h-10 px-2 font-semibold text-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              {storageIssue === "read" ? "Retry loading" : storageIssue === "invalid" ? "Start fresh" : storageIssue === "save" ? "Retry saving" : "Retry clearing"}
+            </button>
+          </div>
+        )}
       </div>
 
       <form onSubmit={submit} className="flex min-w-0 gap-2 border-t border-primary/10 bg-light-surface p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-5">
@@ -215,18 +325,23 @@ export function ConsultingChat({ account, topic, context = "", sessionScope = "a
           id={`consult-message-${account.id}-${topic}`}
           value={input}
           maxLength={MAX_MESSAGE_LENGTH}
-          onChange={(event) => setInput(event.target.value)}
+          onChange={(event) => {
+            setInput(event.target.value);
+            if (error) setError("");
+          }}
           placeholder="Ask a question…"
           disabled={!isReady || isSending}
+          aria-describedby={error ? `consult-error-${account.id}-${topic}` : undefined}
           className="min-h-12 min-w-0 flex-1 rounded-xl border border-primary/20 bg-white px-3 text-sm text-primary outline-none placeholder:text-secondary/60 focus:border-primary focus:ring-2 focus:ring-accent/40 disabled:opacity-60 sm:px-4"
         />
         <button
           type="submit"
           disabled={!isReady || isSending || !input.trim()}
-          aria-label="Send message"
-          className="inline-flex min-h-12 min-w-12 items-center justify-center rounded-xl bg-accent text-primary transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label={error ? "Retry sending message" : "Send message"}
+          className="inline-flex min-h-12 min-w-12 items-center justify-center gap-2 rounded-xl bg-accent px-3 text-primary transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <ArrowUp className="h-5 w-5" aria-hidden />
+          {error ? <RotateCcw className="h-4 w-4" aria-hidden /> : <ArrowUp className="h-5 w-5" aria-hidden />}
+          {error && <span className="text-sm font-semibold">Retry</span>}
         </button>
       </form>
     </section>
