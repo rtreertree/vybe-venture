@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Sora, Public_Sans } from "next/font/google";
 import "./globals.css";
 
@@ -15,6 +15,12 @@ const publicSans = Public_Sans({
 export const metadata: Metadata = {
   title: `${process.env.NEXT_PUBLIC_APP_NAME || "CAN'T LOAD ENV"} | Personal Financial Guidance`,
   description: "Get a clearer view of your money, make a plan around your goals, and choose your next step with confidence.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

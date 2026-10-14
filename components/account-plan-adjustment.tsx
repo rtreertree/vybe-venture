@@ -310,7 +310,7 @@ export function AccountPlanAdjustment({
                 {messages.map((message, index) => (
                   <div key={`${index}-${message.role}`} className={`flex flex-col gap-1.5 ${message.role === "user" ? "items-end" : "items-start"}`}>
                     <span className="px-1 text-[10px] font-bold uppercase text-secondary">{message.role === "user" ? "You" : "Money, Clearly"}</span>
-                    <p className={`max-w-[90%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 ${message.role === "user" ? "rounded-br-md bg-primary text-white" : "rounded-bl-md border border-primary/10 bg-light-surface text-primary"}`}>
+                    <p className={`max-w-[90%] wrap-anywhere whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 ${message.role === "user" ? "rounded-br-md bg-primary text-white" : "rounded-bl-md border border-primary/10 bg-light-surface text-primary"}`}>
                       {message.content}
                     </p>
                   </div>

@@ -100,51 +100,6 @@ function LoadingDots() {
     );
 }
 
-function StreamedText({ text, animate }: { text: string; animate: boolean }) {
-    const characters = Array.from(text);
-    const characterCount = characters.length;
-    const latestCountRef = useRef(characterCount);
-    const [visibleCount, setVisibleCount] = useState(() => animate ? 0 : characterCount);
-    const [wasAnimated] = useState(animate);
-
-    useEffect(() => {
-        latestCountRef.current = characterCount;
-    }, [characterCount]);
-
-    useEffect(() => {
-        if (!animate && visibleCount >= latestCountRef.current) return;
-        const timer = window.setInterval(() => {
-            setVisibleCount((current) => Math.min(current + 1, latestCountRef.current));
-        }, 5);
-        return () => window.clearInterval(timer);
-    }, [animate, visibleCount]);
-
-    if (!wasAnimated) return text;
-
-    const visibleText = characters.slice(0, visibleCount).join("");
-    const segments = Array.from(visibleText.matchAll(/\s+|\S+/gu));
-
-    return segments.map((match) => {
-        const segment = match[0];
-        const segmentStart = match.index ?? 0;
-        const segmentCharacters = Array.from(segment);
-
-        if (/^\s+$/u.test(segment)) {
-            return <span key={`space-${segmentStart}`}>{segment}</span>;
-        }
-
-        return (
-            <span key={`word-${segmentStart}`} className="chat-word">
-                {segmentCharacters.map((character, index) => (
-                    <span key={segmentStart + index} className="chat-character">
-                        {character}
-                    </span>
-                ))}
-            </span>
-        );
-    });
-}
-
 export default function ChatPage() {
     const router = useRouter();
     const [input, setInput] = useState("");
@@ -157,14 +112,34 @@ export default function ChatPage() {
     useEffect(() => {
         const viewport = viewportRef.current;
         if (!viewport) return;
+        let frame = 0;
+        let lastHeight = 0;
+        let lastTop = -1;
         const updateHeight = () => {
-            viewport.style.height = `${window.visualViewport?.height ?? window.innerHeight}px`;
+            if (frame) return;
+            frame = window.requestAnimationFrame(() => {
+                frame = 0;
+                const visualViewport = window.visualViewport;
+                const height = Math.round(visualViewport?.height ?? window.innerHeight);
+                const top = Math.round(visualViewport?.offsetTop ?? 0);
+                if (lastHeight !== height) {
+                    viewport.style.height = `${height}px`;
+                    lastHeight = height;
+                }
+                if (lastTop !== top) {
+                    viewport.style.top = `${top}px`;
+                    lastTop = top;
+                }
+            });
         };
         updateHeight();
         window.visualViewport?.addEventListener("resize", updateHeight);
+        window.visualViewport?.addEventListener("scroll", updateHeight);
         window.addEventListener("resize", updateHeight);
         return () => {
+            window.cancelAnimationFrame(frame);
             window.visualViewport?.removeEventListener("resize", updateHeight);
+            window.visualViewport?.removeEventListener("scroll", updateHeight);
             window.removeEventListener("resize", updateHeight);
         };
     }, []);
@@ -366,7 +341,7 @@ export default function ChatPage() {
     };
 
     return (
-        <div ref={viewportRef} className="flex h-dvh min-h-0 flex-col overflow-hidden bg-light-surface text-primary">
+        <div ref={viewportRef} className="fixed inset-x-0 top-0 flex h-dvh min-h-0 flex-col overflow-hidden bg-light-surface text-primary">
             <header className="border-b border-primary/10 bg-light-surface">
                 <div className="mx-auto flex h-16 w-full max-w-3xl items-center justify-between px-5 sm:px-8">
                     <Link href="/" className="font-display text-sm font-bold sm:text-base">
@@ -391,15 +366,7 @@ export default function ChatPage() {
                                 {m.role === "user" ? "You" : <><span className="h-1.5 w-1.5 rounded-full bg-growth" aria-hidden /> {process.env.NEXT_PUBLIC_APP_NAME || "CAN'T LOAD ENV"}</>}
                             </span>
                             <span className={`inline-block max-w-[85%] wrap-anywhere whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 sm:max-w-[75%] ${m.role === "user" ? "rounded-br-md bg-primary text-white" : "rounded-bl-md border border-primary/10 bg-white text-primary shadow-sm shadow-primary/5"}`}>
-                                {m.role === "assistant" && i === messages.length - 1 ? (
-                                    m.content ? (
-                                        <StreamedText text={m.content} animate={isStreaming} />
-                                    ) : isStreaming ? (
-                                        <LoadingDots />
-                                    ) : "…"
-                                ) : (
-                                    m.content || "…"
-                                )}
+                                {m.content || (m.role === "assistant" && isStreaming && i === messages.length - 1 ? <LoadingDots /> : "…")}
                             </span>
                         </div>
                     ))}
@@ -423,6 +390,7 @@ export default function ChatPage() {
                                 className="min-h-12 min-w-0 flex-1 rounded-xl bg-transparent px-3 py-3 text-primary outline-none placeholder:text-secondary/60 disabled:opacity-50"
                                 value={input}
                                 maxLength={2000}
+                                keyboardScroll={false}
                                 disabled={!isReady || isComplete}
                                 onChange={(e) => setInput(e.target.value)}
                                 placeholder="Type a message…"
