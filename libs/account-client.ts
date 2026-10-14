@@ -104,15 +104,32 @@ function mergeLegacyProfiles(accounts: LegacyAccountRecord[]): PersonalProfile {
   return profile;
 }
 
+function normalizeStoredPersonalProfile(value: unknown): PersonalProfile | null {
+  if (isPersonalProfile(value)) return value;
+  if (
+    !isRecord(value)
+    || typeof value.age !== "number"
+    || !Number.isInteger(value.age)
+    || value.age < 1
+    || value.age >= 18
+  ) {
+    return null;
+  }
+
+  const normalized = { ...value, age: null };
+  return isPersonalProfile(normalized) ? normalized : null;
+}
+
 export function readPersonalProfile(): PersonalProfileReadResult {
   try {
     const saved = window.localStorage.getItem(PERSONAL_PROFILE_STORAGE_KEY);
     if (saved === null) return { ok: true, profile: null };
     const parsed: unknown = JSON.parse(saved);
-    if (!isPersonalProfile(parsed)) {
+    const profile = normalizeStoredPersonalProfile(parsed);
+    if (!profile) {
       return { ok: false, message: "The saved personal profile is invalid. Your local data has not been changed." };
     }
-    return { ok: true, profile: parsed };
+    return { ok: true, profile };
   } catch {
     return { ok: false, message: "Personal profile storage could not be read. Your local data has not been changed." };
   }

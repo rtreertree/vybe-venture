@@ -26,8 +26,8 @@ const assetSchema = {
     summary: { type: "string" },
     assets: {
       type: "array",
-      minItems: 4,
-      maxItems: 4,
+      minItems: 7,
+      maxItems: 7,
       items: {
         type: "object",
         additionalProperties: false,
@@ -73,7 +73,7 @@ export async function POST(req: Request) {
     const response = await openaiClient.responses.create({
       model: "gpt-5-mini",
       reasoning: { effort: "minimal" },
-      instructions: `Create four educational, illustrative financial-product cards for a product-exploration screen. This is not personalized financial advice, a recommendation, or a prediction. Do not use real tickers, real funds, real companies, performance figures, guarantees, or calls to buy. Invent neutral, clearly fictional product names and symbols.
+      instructions: `Create seven educational, illustrative financial-product cards for a product-exploration screen. This is not personalized financial advice, a recommendation, or a prediction. Do not use real tickers, real funds, real companies, performance figures, guarantees, or calls to buy. Invent neutral, clearly fictional product names and symbols.
 
 Use the planning profile only to vary the examples' broad risk, liquidity, time horizon, and explanations. Include a range of understandable product categories. Be especially cautious when the profile indicates low risk tolerance or short liquidity needs. Keep every field short, plain-English, and balanced.`,
       input: JSON.stringify({

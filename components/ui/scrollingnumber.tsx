@@ -19,21 +19,6 @@ type StatsMarqueeProps = {
   className?: string;
 };
 
-/**
- * THEME VARIABLES
- * Change the defaults below, or override from anywhere (globals.css,
- * a parent element, the className prop) with the same variable names:
- *
- *   --marquee-font-value     big number
- *   --marquee-font-label     description text
- *   --marquee-font-company   company name
- *   --marquee-color-value    big number
- *   --marquee-color-label    description text
- *   --marquee-color-company  company name
- *
- * Defaults sit inside :where(), which has zero specificity, so any
- * override you write will win without needing !important.
- */
 export function StatsMarquee({
   stats = DEFAULT_STATS,
   durationSeconds = 30,

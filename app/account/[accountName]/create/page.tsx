@@ -28,6 +28,9 @@ function createFallbackExamples(): AssetResult {
       { id: "bond", name: "Steady Path Bond Mix", symbol: "SPB", category: "Bond mix", risk: "Lower–moderate", time_horizon: "1–3 years", liquidity: "Moderate", cost: "Low", why_it_may_fit: "Adds some stability while accepting modest price movement.", what_to_watch: "Values can still move when interest rates change.", summary: "A fictional diversified bond-style mix." },
       { id: "balanced", name: "Balanced Steps", symbol: "BST", category: "Balanced mix", risk: "Moderate", time_horizon: "3–5 years", liquidity: "Moderate", cost: "Medium", why_it_may_fit: "Blends growth and defensive assets for a longer view.", what_to_watch: "May fall in value during market downturns.", summary: "A fictional mix of shares and bonds." },
       { id: "global", name: "Global Growth Basket", symbol: "GGB", category: "Share basket", risk: "Higher", time_horizon: "5+ years", liquidity: "Moderate", cost: "Low", why_it_may_fit: "Offers broad exposure for goals with more time.", what_to_watch: "Short-term losses can be significant.", summary: "A fictional globally diversified share-style basket." },
+      { id: "income", name: "Income Ladder", symbol: "IDL", category: "Income mix", risk: "Moderate", time_horizon: "2–5 years", liquidity: "Moderate", cost: "Medium", why_it_may_fit: "Balances yield and reinvestment for a steadier cash-flow focus.", what_to_watch: "Income can vary and future returns may not be predictable.", summary: "A fictional yield-focused option with a steadying profile." },
+      { id: "dividend", name: "Dividend Crest", symbol: "DCR", category: "Share basket", risk: "Moderate", time_horizon: "3–7 years", liquidity: "Moderate", cost: "Medium", why_it_may_fit: "Can suit a longer investment horizon with a preference for ongoing payouts.", what_to_watch: "Companies may cut dividends or pause payouts in tougher periods.", summary: "A fictional share-style option built around regular income potential." },
+      { id: "opportunity", name: "Opportunity Horizon", symbol: "OHH", category: "Growth mix", risk: "Higher", time_horizon: "5+ years", liquidity: "Lower", cost: "Medium", why_it_may_fit: "Tends to emphasize long-term growth for investors with time and patience.", what_to_watch: "Price swings can be sharp and returns are less predictable.", summary: "A fictional higher-growth option for a longer-term view." },
     ],
   };
 }
@@ -143,9 +146,14 @@ export default function CreateAccountPage() {
   const compared = (result?.assets ?? []).filter((asset) => selected.includes(asset.id));
   const selectionHasChanged = selected.length !== savedSelection.length
     || selected.some((id) => !savedSelection.includes(id));
+  const maxSelections = 3;
   const toggle = (id: string) => {
     setSavedMessage("");
-    setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : current.length < 2 ? [...current, id] : [current[1], id]);
+    setSelected((current) => current.includes(id)
+      ? current.filter((item) => item !== id)
+      : current.length < maxSelections
+        ? [...current, id]
+        : [current[1], current[2], id].filter(Boolean) as string[]);
   };
   const saveSelections = () => {
     if (!accountId || !result) return;
@@ -167,7 +175,7 @@ export default function CreateAccountPage() {
     <div className="min-h-dvh bg-light-surface text-primary">
       <header className="border-b border-primary/10 bg-light-surface/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
-          <Link href="/" className="font-display text-sm font-bold sm:text-base">MONEY, CLEARLY<span className="text-accent">.</span></Link>
+          <Link href="/" className="font-display text-sm font-bold sm:text-base">{process.env.NEXT_PUBLIC_APP_NAME || "CAN'T LOAD ENV"}<span className="text-accent">.</span></Link>
           <Link href={accountId ? `/consult?account=${encodeURIComponent(accountId)}` : "/consult"} aria-label="Investment consulting" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-secondary underline decoration-secondary/40 underline-offset-4 transition-colors hover:text-primary">
             <MessageCircle className="h-4 w-4 sm:hidden" aria-hidden /><span className="hidden sm:inline">Investment consulting</span>
           </Link>
@@ -226,8 +234,11 @@ export default function CreateAccountPage() {
             {savedMessage && <p role="status" className="mt-4 text-sm font-medium text-growth">{savedMessage}</p>}
 
             {result ? <>
-              <div className="mt-6 flex gap-2 overflow-x-auto pb-1" aria-label="Filter product categories">
-                {categories.map((item) => <button key={item} onClick={() => setCategory(item)} className={`min-h-10 shrink-0 border px-4 text-sm font-semibold transition-colors ${category === item ? "border-primary bg-primary text-white" : "border-primary/20 bg-white hover:border-primary/50"}`}>{item}</button>)}
+              <div className="mt-6 flex items-center justify-between gap-4 flex-wrap" aria-label="Selection guidance">
+                <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Filter product categories">
+                  {categories.map((item) => <button key={item} onClick={() => setCategory(item)} className={`min-h-10 shrink-0 border px-4 text-sm font-semibold transition-colors ${category === item ? "border-primary bg-primary text-white" : "border-primary/20 bg-white hover:border-primary/50"}`}>{item}</button>)}
+                </div>
+                <p className="text-sm text-ink/65">Choose up to {maxSelections} products to compare.</p>
               </div>
               <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
                 {visibleAssets.map((asset) => {
@@ -247,8 +258,7 @@ export default function CreateAccountPage() {
               </div>
             ) : <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4">{[0,1,2,3].map((item) => <div key={item} className="h-80 animate-pulse bg-primary/10" />)}</div>}
 
-            {(compared.length > 0 || selectionHasChanged) && <section className="mt-12 border border-primary/15 bg-white p-5 sm:p-7" aria-labelledby="compare-title"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.12em] text-secondary">Side-by-side</p><h2 id="compare-title" className="mt-2 flex items-center gap-2 font-display text-2xl font-bold"><Scale className="h-5 w-5 text-accent" aria-hidden /> Compare your choices</h2></div><p className="text-sm text-ink/65">Choose up to two products to compare.</p></div>{compared.length > 0 ? <div className="mt-6 overflow-x-auto"><table className="w-full min-w-150 text-left text-sm"><thead><tr className="border-b border-primary/15"><th className="pb-3 pr-6 font-semibold text-secondary">Detail</th>{compared.map((asset) => <th key={asset.id} className="pb-3 pr-6 font-display text-base font-bold">{asset.name}</th>)}</tr></thead><tbody>{[["Risk", "risk"], ["Time horizon", "time_horizon"], ["Liquidity", "liquidity"], ["Cost", "cost"], ["Why it may fit", "why_it_may_fit"], ["What to watch", "what_to_watch"]].map(([label, key]) => <tr key={label} className="border-b border-primary/10 last:border-0"><th className="py-4 pr-6 align-top font-semibold text-secondary">{label}</th>{compared.map((asset) => <td key={asset.id} className="py-4 pr-6 align-top leading-6 text-ink/75">{asset[key as keyof Asset]}</td>)}</tr>)}</tbody></table></div> : <p className="mt-5 text-sm leading-6 text-ink/70">No products are selected. Save to clear the product choices previously stored for this account.</p>}<button type="button" onClick={saveSelections} className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 bg-growth px-5 text-sm font-semibold text-primary hover:bg-growth/90"><Check className="h-4 w-4" aria-hidden /> {compared.length ? "Save product choices" : "Clear saved product choices"}</button></section>}
-          </div>
+            {(compared.length > 0 || selectionHasChanged) && <section className="mt-12 border border-primary/15 bg-white p-5 sm:p-7" aria-labelledby="compare-title">            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.12em] text-secondary">Side-by-side</p><h2 id="compare-title" className="mt-2 flex items-center gap-2 font-display text-2xl font-bold"><Scale className="h-5 w-5 text-accent" aria-hidden /> Compare your choices</h2></div><p className="text-sm text-ink/65">Choose up to {maxSelections} products to compare.</p></div>{compared.length > 0 ? <div className="mt-6 overflow-x-auto"><table className="w-full min-w-150 text-left text-sm"><thead><tr className="border-b border-primary/15"><th className="pb-3 pr-6 font-semibold text-secondary">Detail</th>{compared.map((asset) => <th key={asset.id} className="pb-3 pr-6 font-display text-base font-bold">{asset.name}</th>)}</tr></thead><tbody>{[["Risk", "risk"], ["Time horizon", "time_horizon"], ["Liquidity", "liquidity"], ["Cost", "cost"], ["Why it may fit", "why_it_may_fit"], ["What to watch", "what_to_watch"]].map(([label, key]) => <tr key={label} className="border-b border-primary/10 last:border-0"><th className="py-4 pr-6 align-top font-semibold text-secondary">{label}</th>{compared.map((asset) => <td key={asset.id} className="py-4 pr-6 align-top leading-6 text-ink/75">{asset[key as keyof Asset]}</td>)}</tr>)}</tbody></table></div> : <p className="mt-5 text-sm leading-6 text-ink/70">No products are selected. Save to clear the product choices previously stored for this account.</p>}<button type="button" onClick={saveSelections} className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 bg-growth px-5 text-sm font-semibold text-primary hover:bg-growth/90"><Check className="h-4 w-4" aria-hidden /> {compared.length ? "Save product choices" : "Clear saved product choices"}</button></section>}          </div>
         </section>
       </main>}
       {active && <div className="fixed inset-0 z-50 flex items-end bg-primary/45 p-4 sm:items-center sm:justify-center" role="dialog" aria-modal="true" aria-labelledby="asset-title"><div className="w-full max-w-lg bg-white p-6 shadow-2xl"><div className="flex items-start justify-between gap-6"><div><p className="text-xs font-bold uppercase tracking-[0.12em] text-secondary">{active.category}</p><h2 id="asset-title" className="mt-2 font-display text-2xl font-bold">{active.name}</h2></div><button onClick={() => setActive(null)} className="text-sm font-semibold text-secondary hover:text-primary">Close</button></div><p className="mt-5 leading-7 text-ink/75">{active.summary}</p><dl className="mt-6 space-y-4 border-y border-primary/10 py-5 text-sm"><div><dt className="font-semibold">Why it may fit</dt><dd className="mt-1 leading-6 text-ink/70">{active.why_it_may_fit}</dd></div><div><dt className="font-semibold">What to watch</dt><dd className="mt-1 leading-6 text-ink/70">{active.what_to_watch}</dd></div></dl><button onClick={() => { toggle(active.id); setActive(null); }} className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 bg-accent px-4 font-semibold hover:bg-accent/90">{selected.includes(active.id) ? "Remove from choices" : "Choose to compare"}<ChevronRight className="h-4 w-4" aria-hidden /></button></div></div>}

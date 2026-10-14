@@ -13,7 +13,7 @@ const publicSans = Public_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Money, Clearly | Personal Financial Guidance",
+  title: `${process.env.NEXT_PUBLIC_APP_NAME || "CAN'T LOAD ENV"} | Personal Financial Guidance`,
   description: "Get a clearer view of your money, make a plan around your goals, and choose your next step with confidence.",
 };
 

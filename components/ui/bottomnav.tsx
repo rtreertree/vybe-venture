@@ -9,7 +9,6 @@ const items = [
   { id: "why-invest", label: "Why invest", Icon: TrendingUp },
 ] as const;
 
-/** Fixed bottom tab bar. Active tab = Royal Blue, tracked by scroll position. */
 export function BottomNav() {
   const [active, setActive] = useState<string>("home");
 

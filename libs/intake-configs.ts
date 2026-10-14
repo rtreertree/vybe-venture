@@ -18,18 +18,12 @@ export const INTAKE_CONFIGS = {
         preferred_products: "Investment products or approaches the user prefers, if any.",
         excluded_industries: "Industries, companies, or activities the user prefers to avoid, if any.",
     },
-    // example of a second form:
-    // newsletter: {
-    //     email: "The user's email address",
-    //     topics: "Topics the user wants to hear about",
-    // },
 } satisfies Record<string, FieldsConfig>;
 
 export type IntakeId = keyof typeof INTAKE_CONFIGS;
 
 Object.values(INTAKE_CONFIGS).forEach(assertValidFields);
 
-/** Safe lookup for untrusted ids. Returns null when unknown. */
 export function getIntakeConfig(id: unknown): FieldsConfig | null {
     if (typeof id !== "string") return null;
     if (!Object.prototype.hasOwnProperty.call(INTAKE_CONFIGS, id)) return null;

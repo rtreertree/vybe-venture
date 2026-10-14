@@ -14,13 +14,10 @@ import {
 type TurnType = "answer" | "related" | "unrelated";
 type Analysis = { values: Record<string, unknown>; turnType: TurnType };
 
-// ---------- step 1: extract info + classify the last user turn ----------
 function buildExtractPrompt(fields: FieldsConfig) {
     const list = Object.entries(fields)
         .map(([key, desc]) => `- ${key}: ${desc}`)
         .join("\n");
-
-    console.log("buildExtractPrompt", list);
 
     return `You analyze the LAST user message of an onboarding chat that collects these fields:
 ${list}
@@ -80,7 +77,6 @@ async function analyze(
     return { values: parsed, turnType };
 }
 
-// ---------- step 2: build instructions for the reply ----------
 function buildInstructions(opts: {
     fields: FieldsConfig;
     profile: Profile;
@@ -137,7 +133,6 @@ Warmly thank the user (use their name only if one of the values is clearly their
     return parts.join("\n");
 }
 
-// ---------- main stream ----------
 export function createChatStream(
     messages: ChatMessage[],
     clientState: ChatState,
@@ -156,10 +151,8 @@ export function createChatStream(
             try {
                 const state = structuredClone(clientState);
 
-                // 1. analyze the latest user message
                 const analysis = await analyze(messages, state.profile, fields, upstream.signal);
 
-                // 2. merge extracted values
                 const captured: string[] = [];
                 for (const key of Object.keys(fields)) {
                     const value = sanitizeState({ profile: { [key]: analysis.values[key] } }, fields).profile[key];
@@ -168,7 +161,6 @@ export function createChatStream(
                     state.profile[key] = value;
                 }
 
-                // 3. tangent budget (decided by code, not by the model)
                 let tangentAllowed = true;
                 let tangentsLeft = 0;
                 if (analysis.turnType === "related") {
@@ -181,10 +173,8 @@ export function createChatStream(
                     tangentsLeft = MAX_UNRELATED - state.counters.unrelated;
                 }
 
-                // tell the client right away so the checklist ticks before the text streams
                 send({ type: "state", state });
 
-                // 4. stream the reply
                 const stream = await openaiClient.responses.create(
                     {
                         model: "gpt-5-mini",

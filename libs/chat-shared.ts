@@ -1,6 +1,5 @@
 export type ChatMessage = { role: "user" | "assistant"; content: string };
 
-/** { key: description } */
 export type FieldsConfig = Record<string, string>;
 export type Profile = Record<string, string | number | null>;
 export type Counters = { related: number; unrelated: number };
@@ -55,7 +54,6 @@ const cleanProfileValue = (key: string, value: unknown): string | number | null 
     return cleanStr(value);
 };
 
-/** "job_title" / "jobTitle" -> "Job title" */
 export const labelOf = (key: string) => {
     const spaced = key.replace(/[_-]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").trim();
     return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase();
@@ -64,7 +62,6 @@ export const labelOf = (key: string) => {
 const isRecord = (v: unknown): v is Record<string, unknown> =>
     typeof v === "object" && v !== null;
 
-/** Rebuilds state from untrusted input, keeping only keys that exist in `fields`. */
 export function sanitizeState(raw: unknown, fields: FieldsConfig): ChatState {
     const s = emptyState(fields);
     const root = isRecord(raw) ? raw : {};

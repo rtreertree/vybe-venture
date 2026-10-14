@@ -40,7 +40,7 @@ export function DashboardSelectButton({ label, value, options, onChange }: {
   );
 }
 
-export function DashboardFilters({ marketStatus, lastUpdated }: {
+export function DashboardFilters({ region, onRegionChange, regions, marketStatus, lastUpdated }: {
   region: string;
   onRegionChange: (region: string) => void;
   marketStatus: string;
@@ -48,8 +48,11 @@ export function DashboardFilters({ marketStatus, lastUpdated }: {
   regions: readonly string[];
 }) {
   return (
-    <section aria-label="Filters" className={dashboardClass('filters')} data-reveal="panel">
-      <div className={dashboardClass('filters__status')} data-reveal="status">Market status: {marketStatus} · Last updated: {lastUpdated}</div>
+    <section aria-label="Market filters" className={dashboardClass('filters')} data-reveal="panel">
+      <div className={dashboardClass('filters__row')}>
+        <DashboardSelectButton label="Region" value={region} options={regions} onChange={onRegionChange} />
+        <div className={dashboardClass('filters__status')} data-reveal="status">Market status: {marketStatus} · Last updated: {lastUpdated}</div>
+      </div>
     </section>
   );
 }
@@ -132,23 +135,6 @@ export function DashboardNewsItem({ item }: { item: DashboardNewsItemData }) {
         <span className={dashboardClass('news__summary')}>{item.publishedAt}</span>
       </div>
     </article>
-  );
-}
-
-export function DashboardPortfolioStatus({ label, status, badge, ariaLabel }: {
-  label: string;
-  status: string;
-  badge: string;
-  ariaLabel?: string;
-}) {
-  return (
-    <div className={dashboardClass('news-assistant')} aria-label={ariaLabel} data-reveal="status">
-      <div className={dashboardClass('news-assistant__focus')}>
-        <span className={dashboardClass('news-assistant__label')}>{label}</span>
-        <span className={dashboardClass('news-assistant__sectors')}>{status}</span>
-      </div>
-      <span className={dashboardClass('chip', 'chip--info')}>{badge}</span>
-    </div>
   );
 }
 
@@ -240,18 +226,6 @@ export function DashboardHeatmap({ tiles }: { tiles: DashboardHeatmapTile[] }) {
   );
 }
 
-export type DashboardRankItem = { name: string; value: string; magnitude: number };
-
-export function DashboardRanking({ items }: { items: DashboardRankItem[] }) {
-  return items.map((item) => (
-    <div className={dashboardClass('rank-row')} key={item.name} data-reveal="rank">
-      <div className={dashboardClass('rank-row__name')}>{item.name}</div>
-      <div className={dashboardClass('track')}><div className={dashboardClass('fill')} style={{ width: `${Math.max(4, item.magnitude)}%` }} /></div>
-      <div className={dashboardClass('rank-row__val', 'mono')}>{item.value}</div>
-    </div>
-  ));
-}
-
 export function DashboardSegmentedControl({ label, options, value, onChange }: {
   label: string;
   options: readonly string[];
@@ -286,28 +260,6 @@ export function DashboardMovers({ items, status }: { items: DashboardMover[]; st
           </div>
         </div>
       ))}
-    </div>
-  );
-}
-
-export type DashboardValuationRow = { sector: string; values: string[] };
-
-export function DashboardValuationTable({ columns, rows }: {
-  columns: readonly string[];
-  rows: DashboardValuationRow[];
-}) {
-  return (
-    <div className={dashboardClass('scroll-x')} data-reveal="table">
-      <div className={dashboardClass('table')} role="table" aria-label="Valuation by sector">
-        <div className={dashboardClass('table__row', 'table__head')} role="row">
-          {columns.map((column) => <span key={column} role="columnheader">{column}</span>)}
-        </div>
-        {rows.map((row) => (
-          <div className={dashboardClass('table__row', 'table__body', 'mono')} role="row" key={row.sector}>
-            {[row.sector, ...row.values].map((value, index) => <span role="cell" key={`${row.sector}-${index}`}>{value}</span>)}
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

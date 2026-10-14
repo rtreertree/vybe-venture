@@ -1,24 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# VYBE VENTURE
 
-## Getting Started
+VYBE VENTURE is a prototype personal-finance guidance app that helps users understand their goals, explore account-level planning choices, and review a practical next step with more confidence.
 
-First, run the development server:
+## Product flow
+
+- Landing page positioned around clarity, long-term thinking, and a guided next step.
+- Structured onboarding flow: personal details → account goal → planning conversation → review plan.
+- Local-first prototype storage for drafts and saved account data in the browser.
+- Educational consulting overview to compare scenarios and refine planning assumptions.
+
+## Getting started
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open http://localhost:3000 in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Key routes
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `/` — landing page
+- `/question/register` — personal details questionnaire
+- `/account/register` — account goal setup
+- `/chat/register` — guided planning conversation
+- `/consult` — review and iterate on the plan
+- `/dashboard` — account overview, market data, and a live AI global economic brief
+- `/welcome` — completion state and reset flow
+
+## Prototype notes
+
+Onboarding and account data are stored in the browser on the current device. This is not a signed-in account system and must be treated as a local prototype. Use sample values rather than real financial data, and avoid using the app on a shared device.
+
+Chat and profile content may be sent to the configured AI service to generate responses and normalize profile information.
+
+## Dashboard economic brief
+
+The dashboard's AI executive brief uses the OpenAI Responses API with live web search to summarize recent global economic developments. Source links are shown with each brief; summaries are cached for 15 minutes, and the refresh action requests a new search. The brief is informational, not financial advice. Market data and news feeds may be delayed or unavailable.
 
 ## Onboarding prototype storage
 

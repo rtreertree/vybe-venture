@@ -18,6 +18,7 @@ import {
 import type { AccountPlanning, PersonalProfile } from "@/libs/account-model";
 
 const CHAT_DRAFT_KEY = "chat_register_draft";
+const APP_NAME = process.env.app_name || "CANT LOAD ENV";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
@@ -351,7 +352,7 @@ export default function ChatPage() {
             <header className="border-b border-primary/10 bg-light-surface">
                 <div className="mx-auto flex h-16 w-full max-w-3xl items-center justify-between px-5 sm:px-8">
                     <Link href="/" className="font-display text-sm font-bold sm:text-base">
-                        MONEY, CLEARLY<span className="text-accent">.</span>
+                        {APP_NAME}<span className="text-accent">.</span>
                     </Link>
                     <p className="inline-flex items-center gap-2 rounded-full border border-growth/30 bg-growth/10 px-3 py-2 text-xs font-semibold uppercase text-secondary">
                         <span className="h-2 w-2 rounded-full bg-growth" aria-hidden />
@@ -369,7 +370,7 @@ export default function ChatPage() {
                     {messages.map((m, i) => (
                         <div key={i} className={`flex flex-col gap-1.5 ${m.role === "user" ? "items-end" : "items-start"}`}>
                             <span className={`flex items-center gap-2 px-1 text-[10px] font-bold uppercase text-secondary ${m.role === "user" ? "flex-row-reverse" : ""}`}>
-                                {m.role === "user" ? "You" : <><span className="h-1.5 w-1.5 rounded-full bg-growth" aria-hidden /> Money, Clearly</>}
+                                {m.role === "user" ? "You" : <><span className="h-1.5 w-1.5 rounded-full bg-growth" aria-hidden /> {process.env.NEXT_PUBLIC_APP_NAME || "CAN'T LOAD ENV"}</>}
                             </span>
                             <span className={`inline-block max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 sm:max-w-[75%] ${m.role === "user" ? "rounded-br-md bg-primary text-white" : "rounded-bl-md border border-primary/10 bg-white text-primary shadow-sm shadow-primary/5"}`}>
                                 {m.role === "assistant" && i === messages.length - 1 ? (

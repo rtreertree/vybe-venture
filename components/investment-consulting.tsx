@@ -342,18 +342,10 @@ export function InvestmentConsulting() {
             </p>
           </div>
           <div className="w-full min-w-0 max-w-sm">
-            <label htmlFor="consult-account" className="mb-2 block text-xs font-bold uppercase tracking-widest text-secondary">Selected account</label>
-            <select
-              id="consult-account"
-              value={account.id}
-              onChange={(event) => {
-                const nextAccount = accounts.find((item) => item.id === event.target.value);
-                if (nextAccount) resetForAccount(nextAccount);
-              }}
-              className="min-h-12 w-full min-w-0 max-w-full border border-primary/20 bg-white px-3 text-sm font-semibold text-primary outline-none focus:border-primary focus:ring-2 focus:ring-accent/40 sm:px-4"
-            >
-              {accounts.map((item) => <option key={item.id} value={item.id}>{item.accountName}</option>)}
-            </select>
+            <p className="mb-2 block text-xs font-bold uppercase tracking-widest text-secondary">Selected account</p>
+            <div className="flex min-h-12 w-full min-w-0 max-w-full items-center border border-primary/20 bg-white px-3 text-sm font-semibold text-primary sm:px-4">
+              <span className="min-w-0 wrap-anywhere">{account.accountName}</span>
+            </div>
           </div>
         </div>
 

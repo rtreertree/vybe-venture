@@ -1,29 +1,24 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { BriefcaseBusiness, CircleUserRound, MessageCircle, Plus, Settings2 } from 'lucide-react';
+import { AlertCircle, ArrowRight, BriefcaseBusiness, ExternalLink, Plus, RefreshCw, Sparkles } from 'lucide-react';
 import {
   DashboardFilters,
   DashboardHeatmap,
   DashboardSection,
   DashboardSelectButton,
   DashboardMetrics,
-  DashboardMovers,
   DashboardNewsItem,
-  DashboardPortfolioStatus,
-  DashboardRanking,
+  DashboardMovers,
   DashboardSegmentedControl,
   DashboardTrendChart,
-  DashboardValuationTable,
   dashboardClass,
 } from '../../components/dashboard-components';
 import { accountSlug, readAccounts, type AccountRecord } from '../../libs/account-client';
 import { MOVER_TABS, REGIONS, SECTORS, type DashboardRegion, type TimeRange } from '../../libs/dashboard-data';
 
-const VALUATION_COLUMNS = ['Sector', 'P/E Ratio', 'Div. Yield', 'YTD', '1-Year', 'Weight'];
-const NEWS_DISPLAY_COUNT = 6;
-const ACTIVE_PORTFOLIO_KEY = 'dashboard_active_portfolio';
+const NEWS_DISPLAY_COUNT = 4;
 const SECTOR_SYMBOLS: Record<string, string> = {
   Technology: 'XLK',
   Financials: 'XLF',
@@ -78,6 +73,69 @@ type MarketState =
   | { status: 'loading' }
   | { status: 'ready'; data: MarketPayload }
   | { status: 'unavailable' };
+type EconomicBrief = {
+  summary: string;
+  keyDevelopments: string[];
+  sources: Array<{ title: string; url: string }>;
+  generatedAt: string;
+};
+type EconomicBriefState = {
+  data: EconomicBrief | null;
+  loading: boolean;
+  refreshing: boolean;
+  error: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isBriefPointList(value: unknown): value is string[] {
+  return Array.isArray(value) &&
+    value.length >= 3 &&
+    value.every((item) => typeof item === 'string' && item.trim().length > 0);
+}
+
+function parseEconomicBrief(value: unknown): EconomicBrief | null {
+  if (!isRecord(value)) return null;
+  const brief = value;
+  if (
+    typeof brief.summary !== 'string'
+    || !brief.summary.trim()
+    || !isBriefPointList(brief.keyDevelopments)
+    || !Array.isArray(brief.sources)
+    || brief.sources.length === 0
+    || typeof brief.generatedAt !== 'string'
+    || Number.isNaN(new Date(brief.generatedAt).getTime())
+  ) return null;
+
+  const sources = brief.sources.flatMap((source) => {
+    if (!isRecord(source) || typeof source.title !== 'string' || typeof source.url !== 'string') return [];
+    try {
+      const parsedUrl = new URL(source.url);
+      return parsedUrl.protocol === 'https:'
+        ? [{ title: source.title, url: parsedUrl.href }]
+        : [];
+    } catch {
+      return [];
+    }
+  });
+  if (sources.length === 0) return null;
+
+  return {
+    summary: brief.summary,
+    keyDevelopments: brief.keyDevelopments,
+    sources,
+    generatedAt: brief.generatedAt,
+  };
+}
+
+function formatBriefTime(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? 'Time unavailable'
+    : new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+}
 
 function formatReturn(value: number) {
   return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
@@ -168,20 +226,65 @@ function makeTrendPath(series: MarketSeries | null | undefined, range: TimeRange
   }).join(' ');
 }
 
-/* ------------------------------------------------------------------ */
-/* Page                                                                */
-/* ------------------------------------------------------------------ */
-
 export default function Page() {
   const range: TimeRange = '3M';
   const [movers, setMovers] = useState<(typeof MOVER_TABS)[number]>('Gainers');
   const [region, setRegion] = useState<DashboardRegion>('Global');
   const [comparedSector, setComparedSector] = useState('Technology');
-  const [sortDescending, setSortDescending] = useState(true);
   const [marketData, setMarketData] = useState<MarketState>({ status: 'loading' });
   const [portfolios, setPortfolios] = useState<AccountRecord[]>([]);
-  const [activePortfolioId, setActivePortfolioId] = useState<string | null>(null);
   const [portfolioError, setPortfolioError] = useState('');
+  const [portfoliosLoaded, setPortfoliosLoaded] = useState(false);
+  const [economicBrief, setEconomicBrief] = useState<EconomicBriefState>({
+    data: null,
+    loading: true,
+    refreshing: false,
+    error: '',
+  });
+  const economicBriefRequest = useRef<AbortController | null>(null);
+
+  const loadEconomicBrief = useCallback(async (forceRefresh = false) => {
+    economicBriefRequest.current?.abort();
+    const controller = new AbortController();
+    economicBriefRequest.current = controller;
+    setEconomicBrief((current) => ({
+      ...current,
+      loading: current.data === null,
+      refreshing: current.data !== null,
+      error: '',
+    }));
+
+    try {
+      const endpoint = forceRefresh ? '/api/economic-brief?refresh=1' : '/api/economic-brief';
+      const response = await fetch(endpoint, {
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+      if (!response.ok) throw new Error('Economic brief request failed');
+      const data = parseEconomicBrief(await response.json() as unknown);
+      if (!data) throw new Error('Economic brief response was invalid');
+      if (!controller.signal.aborted) {
+        setEconomicBrief({ data, loading: false, refreshing: false, error: '' });
+      }
+    } catch {
+      if (!controller.signal.aborted) {
+        setEconomicBrief((current) => ({
+          ...current,
+          loading: false,
+          refreshing: false,
+          error: 'We could not load the global economic brief. The service may be temporarily unavailable. Try again.',
+        }));
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void loadEconomicBrief(); }, 0);
+    return () => {
+      window.clearTimeout(timer);
+      economicBriefRequest.current?.abort();
+    };
+  }, [loadEconomicBrief]);
 
   useEffect(() => {
     const syncPortfolios = () => {
@@ -189,17 +292,16 @@ export default function Page() {
         const result = readAccounts();
         if (!result.ok) {
           setPortfolioError(result.message);
+          setPortfoliosLoaded(true);
           return;
         }
 
-        const savedId = window.localStorage.getItem(ACTIVE_PORTFOLIO_KEY);
-        const active = result.accounts.find((portfolio) => portfolio.id === savedId) ?? result.accounts[0] ?? null;
         setPortfolios(result.accounts);
-        setActivePortfolioId(active?.id ?? null);
-        if (active && active.id !== savedId) window.localStorage.setItem(ACTIVE_PORTFOLIO_KEY, active.id);
         setPortfolioError('');
+        setPortfoliosLoaded(true);
       } catch {
         setPortfolioError('Portfolio data could not be read from this device.');
+        setPortfoliosLoaded(true);
       }
     };
 
@@ -230,11 +332,7 @@ export default function Page() {
     : indexSelection;
   const getSectorSeries = (name: string) => liveSymbols[SECTOR_SYMBOLS[name]];
   const getSectorReturn = (sector: (typeof SECTORS)[number]) => seriesReturn(getSectorSeries(sector.name), range);
-  const performanceSectors = [...SECTORS].sort((a, b) => (getSectorReturn(b) ?? -Infinity) - (getSectorReturn(a) ?? -Infinity));
-  const sortedSectors = sortDescending ? performanceSectors : [...performanceSectors].reverse();
   const availableSectors = SECTORS.filter((sector) => getSectorReturn(sector) !== null);
-  const topSector = performanceSectors.find((sector) => getSectorReturn(sector) !== null) ?? SECTORS[0];
-  const weakestSector = [...performanceSectors].reverse().find((sector) => getSectorReturn(sector) !== null) ?? SECTORS[0];
   const advancingCount = availableSectors.filter((sector) => (getSectorReturn(sector) ?? 0) > 0).length;
   const marketReturn = seriesReturn(marketSeries, range);
   const availableStockRows = STOCK_SYMBOLS.map((symbol) => {
@@ -260,10 +358,8 @@ export default function Page() {
     })
     .slice(0, 4);
   const trendPath = makeTrendPath(marketSeries, range);
-  const selectedSector = SECTORS.find((sector) => sector.name === comparedSector) ?? topSector;
-  const selectedSectorReturn = getSectorReturn(selectedSector);
+  const selectedSector = SECTORS.find((sector) => sector.name === comparedSector) ?? SECTORS[0];
   const sectorTrendPath = makeTrendPath(getSectorSeries(selectedSector.name), range);
-  const maxSectorReturn = Math.max(0.01, ...availableSectors.map((sector) => Math.abs(getSectorReturn(sector) ?? 0)));
   const heatmapTiles = SECTORS.map((sector) => {
     const sectorReturn = getSectorReturn(sector);
     return {
@@ -274,59 +370,183 @@ export default function Page() {
       onClick: () => setComparedSector(sector.name),
     };
   });
-  const activePortfolio = portfolios.find((portfolio) => portfolio.id === activePortfolioId) ?? null;
-
   return (
     <div className={dashboardClass('dashboard')}>
+      <header className={dashboardClass('header')}>
+        <div className={dashboardClass('header__inner')}>
+          <Link className={dashboardClass('wordmark')} href="/" aria-label={`${process.env.NEXT_PUBLIC_APP_NAME} home` || "CAN'T LOAD ENV"}>
+           {process.env.NEXT_PUBLIC_APP_NAME || "CAN'T LOAD ENV"}<span aria-hidden="true">.</span>
+          </Link>
+          <nav className={dashboardClass('nav')} aria-label="Dashboard sections">
+            <a href="#accounts-section">Your accounts</a>
+            <a href="#economic-brief-section">Economic brief</a>
+            <a href="#kpi-h-section">Market snapshot</a>
+            <a href="#news-h-section">Market news</a>
+          </nav>
+          <span className={dashboardClass('header__label')}>Personal finance</span>
+        </div>
+      </header>
       <main className={dashboardClass('main')}>
-          <section className={dashboardClass('portfolio-bar')} aria-label="Portfolio selector" data-reveal="panel">
-            <div className={dashboardClass('portfolio-bar__identity')}>
-              <span className={dashboardClass('portfolio-bar__icon')}><BriefcaseBusiness size={18} aria-hidden="true" /></span>
-              <div className={dashboardClass('portfolio-bar__details')}>
-                <label className={dashboardClass('portfolio-bar__label')} htmlFor="active-portfolio">Current portfolio</label>
-                <select
-                  id="active-portfolio"
-                  className={dashboardClass('portfolio-bar__select')}
-                  value={activePortfolioId ?? ''}
-                  disabled={portfolios.length === 0}
-                  onChange={(event) => {
-                    const nextId = event.target.value;
-                    setActivePortfolioId(nextId);
-                    try {
-                      window.localStorage.setItem(ACTIVE_PORTFOLIO_KEY, nextId);
-                      setPortfolioError('');
-                    } catch {
-                      setPortfolioError('Your selected portfolio could not be saved on this device.');
-                    }
-                  }}
-                >
-                  {portfolios.length === 0 && <option value="">No portfolios yet</option>}
-                  {portfolios.map((portfolio) => <option key={portfolio.id} value={portfolio.id}>{portfolio.accountName}</option>)}
-                </select>
-                {activePortfolio && <span className={dashboardClass('portfolio-bar__goal')}>{activePortfolio.goal}</span>}
+          <section className={dashboardClass('dashboard-intro')} data-reveal="panel">
+            <p className={dashboardClass('dashboard-intro__eyebrow')}>Your financial overview</p>
+            <h1 className={dashboardClass('dashboard-intro__title')}>Your money, in clearer view.</h1>
+            <p className={dashboardClass('dashboard-intro__description')}>
+              Keep your goals close and the wider market in perspective.
+            </p>
+          </section>
+
+          <section
+            id="economic-brief-section"
+            className={dashboardClass('economic-brief')}
+            aria-labelledby="economic-brief-heading"
+            aria-busy={economicBrief.loading || economicBrief.refreshing}
+            data-reveal="panel"
+          >
+            <div className={dashboardClass('economic-brief__header')}>
+              <div className={dashboardClass('economic-brief__heading')}>
+                <span className={dashboardClass('economic-brief__icon')} aria-hidden="true"><Sparkles size={18} /></span>
+                <div>
+                  <p className={dashboardClass('economic-brief__eyebrow')}>Global markets · Executive brief</p>
+                  <h2 id="economic-brief-heading">The global economy, in brief</h2>
+                </div>
               </div>
-            </div>
-            <div className={dashboardClass('portfolio-bar__actions')}>
               <button
                 type="button"
-                className={dashboardClass('portfolio-bar__icon-button')}
-                aria-label="Portfolio settings, coming soon"
-                title="Settings coming soon"
-                disabled
-              ><Settings2 size={17} aria-hidden="true" /></button>
-              {activePortfolio && <>
-                <Link className={dashboardClass('portfolio-bar__primary')} href={`/consult?account=${encodeURIComponent(activePortfolio.id)}`}>
-                  <MessageCircle size={16} aria-hidden="true" /> <span>Consult</span>
-                </Link>
-                <Link className={dashboardClass('portfolio-bar__secondary')} href={`/account/${encodeURIComponent(accountSlug(activePortfolio.accountName, activePortfolio.id))}/create`}>
-                  <CircleUserRound size={16} aria-hidden="true" /> <span>Account</span>
-                </Link>
-              </>}
-              <Link className={dashboardClass('portfolio-bar__secondary')} href="/account/register?new=1">
-                <Plus size={16} aria-hidden="true" /> <span>New portfolio</span>
+                className={dashboardClass('economic-brief__refresh')}
+                onClick={() => void loadEconomicBrief(true)}
+                disabled={economicBrief.loading || economicBrief.refreshing}
+                aria-label={economicBrief.refreshing ? 'Refreshing economic brief' : 'Refresh economic brief'}
+              >
+                <RefreshCw
+                  size={15}
+                  aria-hidden="true"
+                  className={dashboardClass(economicBrief.refreshing && 'economic-brief__refresh-icon')}
+                />
+                <span>{economicBrief.refreshing ? 'Refreshing' : 'Refresh'}</span>
+              </button>
+            </div>
+
+            <div className={dashboardClass('economic-brief__labels')}>
+              <span className={dashboardClass('economic-brief__ai-label')}><Sparkles size={13} aria-hidden="true" /> AI-generated</span>
+              <span className={dashboardClass('economic-brief__disclaimer')}>Informational only · Not financial advice</span>
+            </div>
+
+            {economicBrief.loading ? (
+              <p className={dashboardClass('economic-brief__message')} role="status" aria-live="polite">
+                <span className={dashboardClass('economic-brief__loader')} aria-hidden="true" />
+                Loading the latest global economic brief…
+              </p>
+            ) : null}
+
+            {economicBrief.error ? (
+              economicBrief.data ? (
+                <p className={dashboardClass('economic-brief__error')} role="alert">
+                  <AlertCircle size={16} aria-hidden="true" />
+                  {economicBrief.error} The last available brief is shown below.
+                </p>
+              ) : (
+                <div className={dashboardClass('economic-brief__message', 'economic-brief__message--error')} role="alert">
+                  <AlertCircle size={18} aria-hidden="true" />
+                  <div>
+                    <p>{economicBrief.error}</p>
+                    <button type="button" className={dashboardClass('economic-brief__retry')} onClick={() => void loadEconomicBrief(true)}>
+                      Try again
+                    </button>
+                  </div>
+                </div>
+              )
+            ) : null}
+
+            {economicBrief.data ? (
+              <>
+                {economicBrief.data.summary.trim() || economicBrief.data.keyDevelopments.length > 0 ? (
+                  <div className={dashboardClass('economic-brief__content')}>
+                    {economicBrief.data.summary.trim() ? (
+                      <p className={dashboardClass('economic-brief__summary')}>{economicBrief.data.summary}</p>
+                    ) : null}
+                    {economicBrief.data.keyDevelopments.length > 0 ? (
+                      <div className={dashboardClass('economic-brief__developments')}>
+                        <h3>Key developments</h3>
+                        <ul>
+                          {economicBrief.data.keyDevelopments.map((development, index) => (
+                            <li key={`${index}-${development}`}>{development}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className={dashboardClass('economic-brief__empty')} role="status">
+                    No global economic updates are available right now. Refresh to check again.
+                  </p>
+                )}
+
+                <div className={dashboardClass('economic-brief__footer')}>
+                  <p className={dashboardClass('economic-brief__updated')}>
+                    Generated <time dateTime={economicBrief.data.generatedAt}>{formatBriefTime(economicBrief.data.generatedAt)}</time>
+                  </p>
+                  {economicBrief.data.sources.length > 0 ? (
+                    <div className={dashboardClass('economic-brief__sources')}>
+                      <h3>Sources</h3>
+                      <ul>
+                        {economicBrief.data.sources.map((source, index) => (
+                          <li key={`${source.url}-${index}`}>
+                            <a href={source.url} target="_blank" rel="noreferrer">
+                              <span>{source.title || source.url}</span>
+                              <ExternalLink size={13} aria-hidden="true" />
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              </>
+            ) : null}
+          </section>
+
+          <section id="accounts-section" className={dashboardClass('accounts-panel')} aria-labelledby="accounts-heading" data-reveal="panel">
+            <div className={dashboardClass('accounts-panel__header')}>
+              <div>
+                <h2 id="accounts-heading">Your accounts</h2>
+              </div>
+              <Link className={dashboardClass('accounts-panel__add')} href="/account/register?new=1">
+                <Plus size={16} aria-hidden="true" /> <span>Add account</span>
               </Link>
             </div>
-            {portfolioError && <p className={dashboardClass('portfolio-bar__error')} role="alert">{portfolioError}</p>}
+            {portfolios.length > 0 ? (
+              <div className={dashboardClass('account-list')}>
+                {portfolios.map((account) => {
+                  return (
+                    <Link
+                      key={account.id}
+                      className={dashboardClass('account-card')}
+                      href={`/account/${encodeURIComponent(accountSlug(account.accountName, account.id))}`}
+                      aria-label={`View ${account.accountName} account details`}
+                    >
+                      <span className={dashboardClass('account-card__body')}>
+                        <span className={dashboardClass('account-card__name')}>{account.accountName}</span>
+                        <span className={dashboardClass('account-card__goal')}>{account.goal}</span>
+                      </span>
+                      <span className={dashboardClass('account-card__end')}>
+                        {account.planning.targetAmount
+                          ? <span className={dashboardClass('account-card__target')}>{formatUsd(account.planning.targetAmount.amount)}</span>
+                          : null}
+                        <ArrowRight size={18} aria-hidden="true" />
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className={dashboardClass('accounts-empty')}>
+                <span className={dashboardClass('accounts-empty__icon')}><BriefcaseBusiness size={20} aria-hidden="true" /></span>
+                <div>
+                  <h3>{portfoliosLoaded ? 'No accounts yet' : 'Loading your accounts…'}</h3>
+                  <p>{portfolioError || (portfoliosLoaded ? 'Add an account to keep its goal and plan here.' : 'Your saved accounts will appear here.')}</p>
+                </div>
+              </div>
+            )}
           </section>
 
           <DashboardFilters
@@ -336,59 +556,34 @@ export default function Page() {
             marketStatus={marketData.status === 'loading' ? 'Loading market data...' : marketData.status === 'unavailable' || !marketSeries ? 'Market data unavailable' : 'Latest daily close'}
             lastUpdated={marketSeries?.regularMarketTime ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(marketSeries.regularMarketTime * 1000)) : '—'}
           />
-          <p className={dashboardClass('filters__status')}>Live daily prices, index and sector ETF proxies, and headlines via Yahoo Finance · Five-minute cache · Demo feed, not licensed for commercial display</p>
-
-          {/* ============ NEWS & RESEARCH ============ */}
-          <DashboardSection id="news-h" variant="plain" title="News & Research" description="Current headlines retrieved from Yahoo Finance. Portfolio-specific AI analysis requires actual holdings.">
-            <DashboardPortfolioStatus label="Portfolio focus" status="No portfolio holdings connected" badge="Portfolio data required" ariaLabel="AI portfolio summary placeholder" />
-            {marketData.status === 'ready' ? marketData.data.news.slice(0, NEWS_DISPLAY_COUNT).map((item) => (
-              <DashboardNewsItem key={item.link} item={{
-                ...item,
-                publishedAt: item.publishedAt ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(item.publishedAt * 1000)) : 'Publication time not provided',
-              }} />
-            )) : <p className="filters__status">{marketData.status === 'loading' ? 'Loading live headlines...' : 'Live headlines are currently unavailable.'}</p>}
-          </DashboardSection>
-
-          {/* ============ KEY METRICS ============ */}
-          <DashboardSection id="kpi-h" variant="plain" title="Key Metrics" description="Calculated from live index and sector ETF daily closes. Sector ETFs are proxies, not official sector indexes.">
+          {/* ============ MARKET SNAPSHOT ============ */}
+          <DashboardSection id="kpi-h" variant="plain" title="Market snapshot" description={`${selectedIndex.name} and available sector ETF proxies.`}>
             <DashboardMetrics items={[
               { label: 'Market Return', value: formatMaybeReturn(marketReturn), note: `${selectedIndex.name} over ${getRangeLabel(range)}.` },
-              { label: 'Top Sector Proxy', value: formatMaybeReturn(getSectorReturn(topSector)), note: `${topSector.name} ETF proxy.` },
-              { label: 'Weakest Sector Proxy', value: formatMaybeReturn(getSectorReturn(weakestSector)), note: `${weakestSector.name} ETF proxy.` },
               { label: 'Market Breadth', value: marketData.status === 'ready' ? `${advancingCount} / ${availableSectors.length}` : '—', note: 'Available sector ETF proxies with positive returns.' },
             ]} />
           </DashboardSection>
 
           {/* ============ PERFORMANCE TREND ============ */}
-          <DashboardSection id="trend-h" title="Performance Trend" description="Daily close history for the selected benchmark and a sector ETF proxy.">
+          <DashboardSection id="trend-h" title="Performance" description="Compare the selected index with a sector ETF.">
             <DashboardSelectButton label="Compare with" value={selectedSector.name} options={SECTORS.map((sector) => sector.name)} onChange={setComparedSector} />
             <DashboardTrendChart
               label={`${selectedIndex.name} and ${selectedSector.name} daily price history`}
               axisLabels={[`${getRangeLabel(range)} start`, 'Mid-period', 'Latest']}
               series={[
-                { label: `${selectedIndex.name} ${formatMaybeReturn(marketReturn)}`, path: trendPath, color: 'var(--midnight-ink)' },
-                { label: `${selectedSector.name} ETF ${formatMaybeReturn(selectedSectorReturn)}`, path: sectorTrendPath, color: 'var(--electric-tangerine)', dashed: true },
+                { label: selectedIndex.name, path: trendPath, color: 'var(--midnight-ink)' },
+                { label: `${selectedSector.name} ETF`, path: sectorTrendPath, color: 'var(--electric-tangerine)', dashed: true },
               ]}
             />
           </DashboardSection>
 
           {/* ============ SECTOR HEATMAP ============ */}
-          <DashboardSection id="heat-h" title="Sector Heatmap" description="Sector ETF proxy return over the selected period. Tile area does not represent market weight.">
+          <DashboardSection id="heat-h" title="Sector performance" description="Three-month return by sector ETF proxy.">
             <DashboardHeatmap tiles={heatmapTiles} />
           </DashboardSection>
 
-          {/* ============ SECTOR RANKING ============ */}
-          <DashboardSection id="rank-h" tight title="Sector Ranking" description="Available sector ETF proxies sorted by actual return over the selected period."
-            action={<button type="button" className={dashboardClass('link-btn')} aria-label={`Sort ${sortDescending ? 'ascending' : 'descending'}`} onClick={() => setSortDescending((descending) => !descending)}>Sort: {sortDescending ? 'Best first' : 'Worst first'}</button>}>
-            <DashboardRanking items={sortedSectors.map((sector) => ({
-              name: sector.name,
-              value: formatMaybeReturn(getSectorReturn(sector)),
-              magnitude: (Math.abs(getSectorReturn(sector) ?? 0) / maxSectorReturn) * 100,
-            }))} />
-          </DashboardSection>
-
-          {/* ============ TOP MOVERS ============ */}
-          <DashboardSection id="mov-h" title="Tracked Stocks" description="Latest available daily close, calculated daily change, and volume for tracked stocks. The tabs sort this fixed list; they are not full-market movers.">
+          {/* ============ TRACKED STOCKS ============ */}
+          <DashboardSection id="mov-h" title="Tracked stocks" description="Daily price changes for this tracked list.">
             <DashboardSegmentedControl label="Mover type" options={MOVER_TABS} value={movers} onChange={(value) => setMovers(value as (typeof MOVER_TABS)[number])} />
             <DashboardMovers
               status={selectedMovers.length === 0 ? 'Tracked stock prices are currently unavailable.' : null}
@@ -402,38 +597,18 @@ export default function Page() {
             />
           </DashboardSection>
 
-          {/* ============ VALUATION SNAPSHOT ============ */}
-          <DashboardSection id="val-h" title="Valuation Snapshot" description="The live quote feed does not supply sector valuation ratios or weights; unavailable fields are left blank rather than estimated.">
-            <DashboardValuationTable
-              columns={VALUATION_COLUMNS}
-              rows={SECTORS.slice(0, 6).map((sector) => ({
-                sector: sector.name,
-                values: ['—', '—', formatMaybeReturn(getSectorReturn(sector)), formatMaybeReturn(seriesReturn(getSectorSeries(sector.name), '1Y')), '—'],
-              }))}
-            />
-          </DashboardSection>
-
-          {/* ============ CLIENT EXPOSURE ============ */}
-          <DashboardSection id="exp-h" tight title="Client Exposure vs. Benchmark" description="Connect a real portfolio before displaying client exposure. No holdings are currently connected.">
-            <DashboardPortfolioStatus label="Portfolio holdings" status="No client portfolio data connected" badge="Unavailable" />
-            <div className={dashboardClass('legend')}>
-              <span className={dashboardClass('legend__item')}><span className={dashboardClass('swatch', 'swatch--bar')} style={{ background: 'var(--navy)' }} />Client</span>
-              <span className={dashboardClass('legend__item')}><span className={dashboardClass('swatch', 'swatch--bar')} style={{ background: 'var(--bar-light)' }} />Benchmark weight source unavailable</span>
-            </div>
-            <p className={dashboardClass('filters__status')}>Load a client portfolio and a licensed benchmark constituent-weight source to calculate exposure. No exposure is estimated here.</p>
-          </DashboardSection>
-
-          {/* ============ ADVISOR INSIGHTS ============ */}
-          <DashboardSection id="adv-h" variant="plain" title="Advisor Insights" description="Calculated from live sector ETF proxy returns; not investment advice.">
-            {availableSectors.length > 0 ? <>
-              <div className={dashboardClass('insight')}><span className={dashboardClass('chip', 'chip--up')}>Strongest proxy</span><p>{topSector.name} ETF: {formatMaybeReturn(getSectorReturn(topSector))} over {getRangeLabel(range)}.</p></div>
-              <div className={dashboardClass('insight')}><span className={dashboardClass('chip', 'chip--down')}>Weakest proxy</span><p>{weakestSector.name} ETF: {formatMaybeReturn(getSectorReturn(weakestSector))} over {getRangeLabel(range)}.</p></div>
-              <div className={dashboardClass('insight')}><span className={dashboardClass('chip', 'chip--info')}>Portfolio</span><p>Connect real holdings to generate client-specific exposure insights.</p></div>
-            </> : <div className={dashboardClass('insight')}><span className={dashboardClass('chip', 'chip--info')}>Live data unavailable</span><p>Sector insights will appear when the market data source responds.</p></div>}
+          {/* ============ MARKET NEWS ============ */}
+          <DashboardSection id="news-h" variant="plain" title="Market news" description="Recent headlines from Yahoo Finance.">
+            {marketData.status === 'ready' ? marketData.data.news.slice(0, NEWS_DISPLAY_COUNT).map((item) => (
+              <DashboardNewsItem key={item.link} item={{
+                ...item,
+                publishedAt: item.publishedAt ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(item.publishedAt * 1000)) : 'Publication time not provided',
+              }} />
+            )) : <p className={dashboardClass('filters__status')}>{marketData.status === 'loading' ? 'Loading live headlines...' : 'Live headlines are currently unavailable.'}</p>}
           </DashboardSection>
 
           <footer className={dashboardClass('foot')} data-reveal="status">
-            Market data and headlines are fetched through an unofficial Yahoo Finance endpoint for non-commercial demo use, may be delayed or unavailable, and are not licensed here for commercial redistribution. Sector funds are proxies rather than index constituents. Valuations, benchmark weights, and client exposures require data sources and holdings that are not connected. Not investment advice.
+            Market data and headlines use an unofficial Yahoo Finance feed for demo purposes; data may be delayed or unavailable. Sector funds are proxies, not official indexes. Not investment advice.
           </footer>
         </main>
       </div>

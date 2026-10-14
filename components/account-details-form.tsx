@@ -74,7 +74,6 @@ export function AccountDetailsForm() {
               return;
             }
           } catch {
-            // Ignore malformed drafts and try the established completed record below.
           }
         }
 
@@ -95,11 +94,9 @@ export function AccountDetailsForm() {
               setIsComplete(Boolean(restoredAnswers.accountName.trim() && restoredAnswers.goal.trim()));
             }
           } catch {
-            // A malformed older register value should not prevent a fresh setup.
           }
         }
       } catch {
-        // Storage can be unavailable in restricted browser contexts; keep the form usable.
       } finally {
         setIsRestored(true);
       }
@@ -171,13 +168,13 @@ export function AccountDetailsForm() {
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-growth/15 text-growth"><Check className="h-6 w-6" aria-hidden /></span>
           <p className="mt-6 text-xs font-bold uppercase tracking-[0.12em] text-secondary">Account details complete</p>
           <h1 className="mt-3 max-w-xl font-display text-3xl font-bold leading-tight text-primary sm:text-4xl">Your account has a purpose.</h1>
-          <p className="mt-4 max-w-lg text-base leading-7 text-ink/70">Money, Clearly has your personal details and the goal for <span className="font-semibold text-primary">{answers.accountName}</span>. Let&apos;s turn that into a plan together.</p>
+          <p className="mt-4 max-w-lg text-base leading-7 text-ink/70">{process.env.NEXT_PUBLIC_APP_NAME || "CAN'T LOAD ENV"} has your personal details and the goal for <span className="font-semibold text-primary">{answers.accountName}</span>. Let&apos;s turn that into a plan together.</p>
 
           <div className="chat-handoff-card mt-8 max-w-lg border border-primary/10 bg-light-surface p-4 sm:p-5">
             <div className="flex items-center gap-3">
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-accent"><MessageCircle className="h-4 w-4" aria-hidden /></span>
               <div>
-                <p className="text-sm font-semibold text-primary">Money, Clearly</p>
+                <p className="text-sm font-semibold text-primary">{process.env.NEXT_PUBLIC_APP_NAME || "CAN'T LOAD ENV"}</p>
                 <p className="text-xs text-secondary">Your personal planning guide</p>
               </div>
               <span className="ml-auto flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.1em] text-growth"><span className="handoff-pulse h-1.5 w-1.5 rounded-full bg-growth" aria-hidden /> Ready</span>

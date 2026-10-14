@@ -52,7 +52,6 @@ async function fetchYahooChart(symbol: string) {
         volumes: quote.volume ?? [],
       };
     } catch {
-      // The unofficial feed occasionally rejects requests; the second attempt is best-effort.
     }
   }
 

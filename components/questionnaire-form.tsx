@@ -207,7 +207,6 @@ export function QuestionnaireForm() {
               return;
             }
           } catch {
-            // Ignore malformed drafts and try the established completed record below.
           }
         }
 
@@ -220,11 +219,9 @@ export function QuestionnaireForm() {
               setIsComplete(isCompleteAnswerSet(restoredAnswers));
             }
           } catch {
-            // A malformed older register value should not prevent a fresh setup.
           }
         }
       } catch {
-        // Storage can be unavailable in restricted browser contexts; keep the form usable.
       } finally {
         setIsRestored(true);
       }

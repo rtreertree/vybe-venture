@@ -158,7 +158,7 @@ function isAssetExamplesContent(value: unknown): value is Omit<AssetExamples, "i
     && isBoundedString(value.headline, 300)
     && isBoundedString(value.summary, 1_000)
     && Array.isArray(value.assets)
-    && value.assets.length === 4
+    && value.assets.length === 7
     && value.assets.every(isAssetExample)
     && new Set(value.assets.map((asset) => asset.id)).size === value.assets.length;
 }
@@ -207,7 +207,7 @@ function isAccountBase(
     && typeof value.createdAt === "string"
     && Number.isFinite(Date.parse(value.createdAt))
     && Array.isArray(value.selectedProducts)
-    && value.selectedProducts.length <= 2
+    && value.selectedProducts.length <= 3
     && value.selectedProducts.every(selectedProductValidator)
     && (value.assetExamples === null || assetExamplesValidator(value.assetExamples));
 }
