@@ -17,7 +17,7 @@ COPY --from=deps /app/node_modules ./node_modules
 
 # Copy all source code
 COPY . .
-
+ENV NEXT_PUBLIC_APP_NAME="VYBE VENTUREs"
 
 # Build Next.js app
 RUN npm run build
@@ -27,6 +27,7 @@ FROM node:24-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV NEXT_PUBLIC_APP_NAME="VYBE VENTUREs"
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=8080
 
