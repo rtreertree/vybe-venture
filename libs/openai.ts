@@ -1,14 +1,14 @@
-import "server-only";
-import OpenAI from "openai";
+import { OpenAI } from "openai";
 
-declare global {
-    var openaiClient: OpenAI | undefined;
-}
+let openaiClient: OpenAI | null = null;
 
-export const openaiClient = globalThis.openaiClient || new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
-
-if (process.env.NODE_ENV !== "production") {
-    globalThis.openaiClient = openaiClient;
+export function getOpenAiClient() {
+  if (!openaiClient) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error("Missing OPENAI_API_KEY at runtime.");
+    }
+    openaiClient = new OpenAI({ apiKey });
+  }
+  return openaiClient;
 }

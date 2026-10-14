@@ -1,6 +1,6 @@
 import "server-only";
 
-import { openaiClient } from "@/libs/openai";
+import { getOpenAiClient } from "@/libs/openai";
 import { sanitizeState, type ChatMessage, type FieldsConfig, type Profile } from "@/libs/chat-shared";
 
 function profileSchema(fields: FieldsConfig) {
@@ -25,7 +25,7 @@ export async function sanitizePlanningProfile(
   fields: FieldsConfig,
 ): Promise<Profile> {
   const { profile } = sanitizeState({ profile: rawProfile }, fields);
-
+  const openaiClient = getOpenAiClient();
   const response = await openaiClient.responses.create({
     model: "gpt-5-mini",
     reasoning: { effort: "minimal" },

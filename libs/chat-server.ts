@@ -1,5 +1,5 @@
 import "server-only";
-import { openaiClient } from "@/libs/openai";
+import { getOpenAiClient } from "@/libs/openai";
 import {
     MAX_RELATED,
     MAX_UNRELATED,
@@ -48,7 +48,7 @@ async function analyze(
     );
     properties.turn_type = { type: "string", enum: ["answer", "related", "unrelated"] };
 
-    const res = await openaiClient.responses.create(
+    const res = await getOpenAiClient().responses.create(
         {
             model: "gpt-5-mini",
             reasoning: { effort: "minimal" },
@@ -175,7 +175,7 @@ export function createChatStream(
 
                 send({ type: "state", state });
 
-                const stream = await openaiClient.responses.create(
+                const stream = await getOpenAiClient().responses.create(
                     {
                         model: "gpt-5-mini",
                         reasoning: { effort: "minimal" },

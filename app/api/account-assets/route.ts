@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { openaiClient } from "@/libs/openai";
+import { getOpenAiClient } from "@/libs/openai";
 import { isAccountPlanning, isAssetExamples, isRecord } from "@/libs/account-model";
 import { readJsonBody } from "@/libs/request-json";
 
@@ -70,7 +70,7 @@ export async function POST(req: Request) {
   if (!isAccountPlanning(planning)) return new Response("Invalid account planning details", { status: 400 });
 
   try {
-    const response = await openaiClient.responses.create({
+    const response = await getOpenAiClient().responses.create({
       model: "gpt-5-mini",
       reasoning: { effort: "minimal" },
       instructions: `Create seven educational, illustrative financial-product cards for a product-exploration screen. This is not personalized financial advice, a recommendation, or a prediction. Do not use real tickers, real funds, real companies, performance figures, guarantees, or calls to buy. Invent neutral, clearly fictional product names and symbols.

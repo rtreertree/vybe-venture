@@ -1,4 +1,4 @@
-import { openaiClient } from "@/libs/openai";
+import { getOpenAiClient } from "@/libs/openai";
 
 const BRIEF_SCHEMA = {
   type: "object",
@@ -64,7 +64,7 @@ function removeInlineCitationLinks(text: string) {
 
 async function generateBrief(): Promise<EconomicBrief> {
   const today = new Date().toISOString().slice(0, 10);
-  const response = await openaiClient.responses.create({
+  const response = await getOpenAiClient().responses.create({
     model: "gpt-5-mini",
     reasoning: { effort: "low" },
     tools: [{

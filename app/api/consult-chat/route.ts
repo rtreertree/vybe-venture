@@ -1,4 +1,4 @@
-import { openaiClient } from "@/libs/openai";
+import { getOpenAiClient } from "@/libs/openai";
 import type { ChatMessage } from "@/libs/chat-shared";
 import { isAccountPlanning, isRecord } from "@/libs/account-model";
 import { readJsonBody } from "@/libs/request-json";
@@ -100,7 +100,7 @@ export async function POST(req: Request) {
   const context = cleanText(body.context, MAX_CONTEXT_CHARS);
 
   try {
-    const response = await openaiClient.responses.create({
+    const response = await getOpenAiClient().responses.create({
       model: "gpt-5-mini",
       reasoning: { effort: "minimal" },
       instructions: topicInstructions(topic as Topic),
