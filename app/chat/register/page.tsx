@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Checklist } from "@/components/Checklist";
+import { ChatComposerTextarea } from "@/components/chat-composer-textarea";
 import { useChat } from "@/hooks/useChat";
 import { sanitizeState, type ChatMessage, type Profile } from "@/libs/chat-shared";
 import {
@@ -18,7 +19,6 @@ import {
 import type { AccountPlanning, PersonalProfile } from "@/libs/account-model";
 
 const CHAT_DRAFT_KEY = "chat_register_draft";
-const APP_NAME = process.env.app_name || "CANT LOAD ENV";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
@@ -151,7 +151,23 @@ export default function ChatPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
     const [draftWarning, setDraftWarning] = useState<string | null>(null);
-    const bottomRef = useRef<HTMLDivElement>(null);
+    const viewportRef = useRef<HTMLDivElement>(null);
+    const messageListRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const viewport = viewportRef.current;
+        if (!viewport) return;
+        const updateHeight = () => {
+            viewport.style.height = `${window.visualViewport?.height ?? window.innerHeight}px`;
+        };
+        updateHeight();
+        window.visualViewport?.addEventListener("resize", updateHeight);
+        window.addEventListener("resize", updateHeight);
+        return () => {
+            window.visualViewport?.removeEventListener("resize", updateHeight);
+            window.removeEventListener("resize", updateHeight);
+        };
+    }, []);
 
     const { fields, messages, state, isStreaming, isComplete, error, send, stop, hydrate } = useChat({
         intake: "profile",
@@ -283,11 +299,13 @@ export default function ChatPage() {
     }, [isReady, messages, state]);
 
     useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+        const list = messageListRef.current;
+        if (list) list.scrollTop = list.scrollHeight;
     }, [messages]);
 
-    const submit = () => {
-        if (!isReady) return;
+    const submit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!isReady || isStreaming || !input.trim()) return;
         send(input);
         setInput("");
     };
@@ -348,11 +366,11 @@ export default function ChatPage() {
     };
 
     return (
-        <div className="flex h-dvh flex-col bg-light-surface text-primary">
+        <div ref={viewportRef} className="flex h-dvh min-h-0 flex-col overflow-hidden bg-light-surface text-primary">
             <header className="border-b border-primary/10 bg-light-surface">
                 <div className="mx-auto flex h-16 w-full max-w-3xl items-center justify-between px-5 sm:px-8">
                     <Link href="/" className="font-display text-sm font-bold sm:text-base">
-                        {APP_NAME}<span className="text-accent">.</span>
+                        {process.env.NEXT_PUBLIC_APP_NAME || "CANT LOAD ENV"}<span className="text-accent">.</span>
                     </Link>
                     <p className="inline-flex items-center gap-2 rounded-full border border-growth/30 bg-growth/10 px-3 py-2 text-xs font-semibold uppercase text-secondary">
                         <span className="h-2 w-2 rounded-full bg-growth" aria-hidden />
@@ -365,14 +383,14 @@ export default function ChatPage() {
                 <div className="border-b border-primary/10">
                     <Checklist fields={fields} profile={state.profile} />
                 </div>
-                <div className="flex-1 space-y-5 overflow-y-auto py-6 sm:py-8">
+                <div ref={messageListRef} className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain py-6 sm:py-8">
                     {!isReady && <div className="flex items-center gap-3 text-sm text-secondary"><span className="handoff-pulse h-2 w-2 rounded-full bg-growth" aria-hidden /> Bringing your answers into the conversation…</div>}
                     {messages.map((m, i) => (
                         <div key={i} className={`flex flex-col gap-1.5 ${m.role === "user" ? "items-end" : "items-start"}`}>
                             <span className={`flex items-center gap-2 px-1 text-[10px] font-bold uppercase text-secondary ${m.role === "user" ? "flex-row-reverse" : ""}`}>
                                 {m.role === "user" ? "You" : <><span className="h-1.5 w-1.5 rounded-full bg-growth" aria-hidden /> {process.env.NEXT_PUBLIC_APP_NAME || "CAN'T LOAD ENV"}</>}
                             </span>
-                            <span className={`inline-block max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 sm:max-w-[75%] ${m.role === "user" ? "rounded-br-md bg-primary text-white" : "rounded-bl-md border border-primary/10 bg-white text-primary shadow-sm shadow-primary/5"}`}>
+                            <span className={`inline-block max-w-[85%] wrap-anywhere whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 sm:max-w-[75%] ${m.role === "user" ? "rounded-br-md bg-primary text-white" : "rounded-bl-md border border-primary/10 bg-white text-primary shadow-sm shadow-primary/5"}`}>
                                 {m.role === "assistant" && i === messages.length - 1 ? (
                                     m.content ? (
                                         <StreamedText text={m.content} animate={isStreaming} />
@@ -386,10 +404,9 @@ export default function ChatPage() {
                         </div>
                     ))}
                     {(error || saveError || draftWarning) && <p role="alert" className="text-sm text-risk">{error || saveError || draftWarning}</p>}
-                    <div ref={bottomRef} />
                 </div>
 
-                <div className="border-t border-primary/15 py-4 sm:py-5">
+                <div className="shrink-0 border-t border-primary/15 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:py-5">
                     {isComplete && !isStreaming ? (
                         <button
                             onClick={next}
@@ -399,29 +416,31 @@ export default function ChatPage() {
                             {isSaving ? "Saving…" : "Next"}
                         </button>
                     ) : (
-                        <div className="flex items-center gap-2 rounded-full border border-primary/15 bg-white p-1.5 shadow-sm shadow-primary/5 focus-within:border-accent">
-                            <input
-                                className="min-w-0 min-h-10 flex-1 rounded-full bg-transparent px-4 text-sm text-primary outline-none placeholder:text-secondary/60 disabled:opacity-50"
+                        <form onSubmit={submit} className="flex items-end gap-2 rounded-2xl border border-primary/15 bg-white p-1.5 shadow-sm shadow-primary/5 focus-within:border-accent">
+                            <label htmlFor="register-chat-message" className="sr-only">Your message</label>
+                            <ChatComposerTextarea
+                                id="register-chat-message"
+                                className="min-h-12 min-w-0 flex-1 rounded-xl bg-transparent px-3 py-3 text-primary outline-none placeholder:text-secondary/60 disabled:opacity-50"
                                 value={input}
+                                maxLength={2000}
                                 disabled={!isReady || isComplete}
                                 onChange={(e) => setInput(e.target.value)}
-                                onKeyDown={(e) => e.key === "Enter" && submit()}
                                 placeholder="Type a message…"
                             />
                             {isStreaming ? (
-                                <button onClick={stop} className="min-h-12 rounded-full bg-risk px-5 font-semibold text-white transition-opacity hover:opacity-90">
+                                <button type="button" onClick={stop} className="min-h-12 rounded-xl bg-risk px-4 font-semibold text-white transition-opacity hover:opacity-90">
                                     Stop
                                 </button>
                             ) : (
                                 <button
-                                    onClick={submit}
-                                    disabled={!isReady || isComplete}
-                                    className="min-h-12 rounded-full bg-accent px-5 font-semibold text-primary transition-colors hover:bg-accent/90 disabled:opacity-50"
+                                    type="submit"
+                                    disabled={!isReady || isComplete || !input.trim()}
+                                    className="min-h-12 rounded-xl bg-accent px-4 font-semibold text-primary transition-colors hover:bg-accent/90 disabled:opacity-50"
                                 >
                                     Send
                                 </button>
                             )}
-                        </div>
+                        </form>
                     )}
                 </div>
             </main>

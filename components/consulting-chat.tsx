@@ -3,6 +3,7 @@
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUp, RotateCcw, Trash2 } from "lucide-react";
 import type { AccountRecord } from "@/libs/account-client";
+import { ChatComposerTextarea } from "@/components/chat-composer-textarea";
 
 export type ConsultingTopic = "general" | "details" | "news" | "what-if";
 type Message = { role: "user" | "assistant"; content: string };
@@ -83,6 +84,7 @@ export function ConsultingChat({ account, topic, context = "", sessionScope = "a
   const [input, setInput] = useState("");
   const [isReady, setIsReady] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [pendingMessage, setPendingMessage] = useState("");
   const [error, setError] = useState("");
   const [storageIssue, setStorageIssue] = useState<StorageIssue>(null);
   const [confirmingClear, setConfirmingClear] = useState(false);
@@ -152,6 +154,7 @@ export function ConsultingChat({ account, topic, context = "", sessionScope = "a
     const nextMessages = [...messages, { role: "user" as const, content: text }].slice(-30);
     setError("");
     setIsSending(true);
+    setPendingMessage(text);
 
     try {
       const response = await fetch("/api/consult-chat", {
@@ -186,7 +189,7 @@ export function ConsultingChat({ account, topic, context = "", sessionScope = "a
         throw new Error("The assistant returned an invalid response.");
       }
       commitMessages([...nextMessages, { role: "assistant", content: (result as { reply: string }).reply }]);
-      setInput("");
+      setInput((current) => current === text ? "" : current);
     } catch (requestError) {
       const message = requestError instanceof Error && requestError.name === "Error" && requestError.message
         ? requestError.message
@@ -194,6 +197,7 @@ export function ConsultingChat({ account, topic, context = "", sessionScope = "a
       setError(`${message} Your message remains in the input below.`);
     } finally {
       setIsSending(false);
+      setPendingMessage("");
     }
   };
 
@@ -295,10 +299,10 @@ export function ConsultingChat({ account, topic, context = "", sessionScope = "a
             </p>
           </div>
         ))}
-        {isSending && input.trim() && (
+        {isSending && pendingMessage && (
           <div className="flex min-w-0 justify-end">
             <p className="max-w-[88%] wrap-anywhere whitespace-pre-wrap rounded-2xl bg-primary px-4 py-3 text-sm leading-6 text-white">
-              <span className="sr-only">You, sending: </span>{input.trim()}
+              <span className="sr-only">You, sending: </span>{pendingMessage}
               <span className="mt-1 block text-right text-xs text-white/70">Sending…</span>
             </p>
           </div>
@@ -319,9 +323,9 @@ export function ConsultingChat({ account, topic, context = "", sessionScope = "a
         )}
       </div>
 
-      <form onSubmit={submit} className="flex min-w-0 gap-2 border-t border-primary/10 bg-light-surface p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-5">
+      <form onSubmit={submit} className="flex min-w-0 items-end gap-2 border-t border-primary/10 bg-light-surface p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-5">
         <label className="sr-only" htmlFor={`consult-message-${account.id}-${topic}`}>Your message</label>
-        <input
+        <ChatComposerTextarea
           id={`consult-message-${account.id}-${topic}`}
           value={input}
           maxLength={MAX_MESSAGE_LENGTH}
@@ -330,9 +334,9 @@ export function ConsultingChat({ account, topic, context = "", sessionScope = "a
             if (error) setError("");
           }}
           placeholder="Ask a question…"
-          disabled={!isReady || isSending}
-          aria-describedby={error ? `consult-error-${account.id}-${topic}` : undefined}
-          className="min-h-12 min-w-0 flex-1 rounded-xl border border-primary/20 bg-white px-3 text-sm text-primary outline-none placeholder:text-secondary/60 focus:border-primary focus:ring-2 focus:ring-accent/40 disabled:opacity-60 sm:px-4"
+          disabled={!isReady}
+          describedBy={error ? `consult-error-${account.id}-${topic}` : undefined}
+          className="min-h-12 min-w-0 flex-1 rounded-xl border border-primary/20 bg-white px-3 py-3 text-primary outline-none placeholder:text-secondary/60 focus:border-primary focus:ring-2 focus:ring-accent/40 disabled:opacity-60 sm:px-4"
         />
         <button
           type="submit"

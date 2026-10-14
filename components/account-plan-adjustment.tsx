@@ -3,6 +3,7 @@
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Check, MessageCircle, Send, Sparkles } from "lucide-react";
+import { ChatComposerTextarea } from "@/components/chat-composer-textarea";
 import {
   accountSlug,
   readPersonalProfile,
@@ -205,7 +206,7 @@ export function AccountPlanAdjustment({
       const assistantMessage: Message = { role: "assistant", content: (result as { reply: string }).reply.trim() };
       setMessages([...nextMessages, assistantMessage].slice(-30));
       setProposal((result as { proposal: AccountPlanDraft }).proposal);
-      setInput("");
+      setInput((current) => current === text ? "" : current);
     } catch (requestError) {
       if (!(requestError instanceof Error && requestError.name === "AbortError")) {
         setError(requestError instanceof Error ? requestError.message : "We couldn't connect to the assistant. Please retry.");
@@ -334,16 +335,16 @@ export function AccountPlanAdjustment({
                 >
                   Review proposal <ArrowRight className="h-4 w-4" aria-hidden />
                 </button>
-                <form onSubmit={sendMessage} className="flex min-w-0 flex-1 gap-2 sm:max-w-xl">
+                <form onSubmit={sendMessage} className="flex min-w-0 flex-1 items-end gap-2 sm:max-w-xl">
                   <label className="sr-only" htmlFor={`plan-message-${account.id}`}>Your message</label>
-                  <input
+                  <ChatComposerTextarea
                     id={`plan-message-${account.id}`}
                     value={input}
                     maxLength={1_500}
                     onChange={(event) => { setInput(event.target.value); if (error) setError(""); }}
                     placeholder="What would you like to change?"
-                    disabled={!isReady || isSending}
-                    className="min-h-11 min-w-0 flex-1 rounded-full border border-primary/20 bg-white px-4 text-sm outline-none focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/30 disabled:opacity-50"
+                    disabled={!isReady}
+                    className="min-h-12 min-w-0 flex-1 rounded-2xl border border-primary/20 bg-white px-4 py-3 outline-none focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/30 disabled:opacity-50"
                   />
                   <button
                     type="submit"
