@@ -19,7 +19,6 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 
-ENV OPENAI_KEY="TEST1"
 # Build Next.js app
 RUN npm run build
 
