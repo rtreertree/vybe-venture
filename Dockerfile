@@ -39,4 +39,4 @@ COPY --from=builder /app/next.config.ts ./next.config.ts
 
 EXPOSE 8080
 
-CMD ["npm", "start"]
+CMD ["npm", "run", "start"]
