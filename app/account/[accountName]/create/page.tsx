@@ -174,12 +174,11 @@ export default function CreateAccountPage() {
   return (
     <div className="min-h-dvh bg-light-surface text-primary">
       <header className="border-b border-primary/10 bg-light-surface/95 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
+        <div className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center justify-between gap-2 px-5 py-3 sm:px-8">
           <Link href="/" className="font-display text-sm font-bold sm:text-base">{process.env.NEXT_PUBLIC_APP_NAME || "CAN'T LOAD ENV"}<span className="text-accent">.</span></Link>
-          <Link href={accountId ? `/consult?account=${encodeURIComponent(accountId)}` : "/consult"} aria-label="Investment consulting" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-secondary underline decoration-secondary/40 underline-offset-4 transition-colors hover:text-primary">
-            <MessageCircle className="h-4 w-4 sm:hidden" aria-hidden /><span className="hidden sm:inline">Investment consulting</span>
+          <Link href={pathname.replace(/\/create\/?$/, "")} className="inline-flex min-h-11 items-center gap-2 border border-primary/20 px-3 text-sm font-semibold text-primary transition-colors hover:bg-primary/5">
+            <ArrowLeft className="h-4 w-4" aria-hidden /> Account overview
           </Link>
-          <Link href="/account/register?new=1" className="text-sm font-semibold text-secondary transition-colors hover:text-primary">New Portfolio</Link>
         </div>
       </header>
       {isAdjustingPlan && onboarding?.account ? (
@@ -207,6 +206,9 @@ export default function CreateAccountPage() {
                 <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-accent"><Sparkles className="h-4 w-4" aria-hidden /> Your account, taking shape</p>
                 <h1 className="mt-4 max-w-3xl font-display text-4xl font-bold leading-tight sm:text-6xl">Explore options for {accountName}.</h1>
                 <p className="mt-5 max-w-2xl text-base leading-7 text-white/75 sm:text-lg">Built around your goal: {goal}. Compare the trade-offs before choosing what you&apos;d like to learn more about.</p>
+                <Link href={accountId ? `/consult?account=${encodeURIComponent(accountId)}` : "/consult"} className="mt-6 inline-flex min-h-11 items-center gap-2 border border-white/30 px-4 text-sm font-semibold text-white transition-colors hover:bg-white/10">
+                  <MessageCircle className="h-4 w-4" aria-hidden /> Investment consulting
+                </Link>
               </div>
               <div className="border border-white/20 bg-white/10 p-5">
                 <p className="text-xs font-bold uppercase tracking-[0.12em] text-white/65">A useful reminder</p>

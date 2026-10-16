@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, ArrowUpRight, CalendarDays, CircleDollarSign, Clock3, Goal, MessageCircle, Sparkles } from 'lucide-react';
+import { ArrowLeft, CalendarDays, CircleDollarSign, Clock3, Goal, MessageCircle, Sparkles } from 'lucide-react';
 import { accountSlug, readAccounts, type AccountRecord } from '@/libs/account-client';
 import { isAccountRecord, isRecord } from '@/libs/account-model';
 
@@ -108,6 +108,20 @@ export default function AccountOverviewPage() {
                   </p>
                   <h1 className="mt-4 wrap-anywhere font-display text-4xl font-bold leading-tight sm:text-5xl">{page.account.accountName}</h1>
                   <p className="mt-4 max-w-2xl text-base leading-7 text-white/75 sm:text-lg">{page.account.goal}</p>
+                  <nav aria-label="Account pages" className="mt-6 flex flex-wrap gap-3">
+                    <Link
+                      href={`/account/${encodeURIComponent(accountSlug(page.account.accountName, page.account.id))}/create`}
+                      className="inline-flex min-h-11 items-center gap-2 bg-accent px-4 text-sm font-semibold text-primary transition-colors hover:bg-accent/90"
+                    >
+                      <Sparkles className="h-4 w-4" aria-hidden /> Explore options
+                    </Link>
+                    <Link
+                      href={`/consult?account=${encodeURIComponent(page.account.id)}`}
+                      className="inline-flex min-h-11 items-center gap-2 border border-white/30 px-4 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+                    >
+                      <MessageCircle className="h-4 w-4" aria-hidden /> Investment consulting
+                    </Link>
+                  </nav>
                   <p className="mt-5 inline-flex items-center gap-2 text-xs text-white/55">
                     <CalendarDays className="h-4 w-4" aria-hidden /> Created {formatDate(page.account.createdAt)}
                   </p>
@@ -161,20 +175,6 @@ export default function AccountOverviewPage() {
                   <dd className="mt-1.5 text-sm leading-6 text-primary/85">{formatPlanningValue(page.account.planning.excludedIndustries)}</dd>
                 </div>
               </dl>
-              <div className="mt-6 grid gap-2 sm:grid-cols-2">
-                <Link
-                  href={`/account/${encodeURIComponent(accountSlug(page.account.accountName, page.account.id))}/create`}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 bg-accent px-4 text-sm font-semibold text-primary transition-colors hover:bg-accent/90"
-                >
-                  <Sparkles className="h-4 w-4" aria-hidden /> Explore options <ArrowUpRight className="h-4 w-4" aria-hidden />
-                </Link>
-                <Link
-                  href={`/consult?account=${encodeURIComponent(page.account.id)}`}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 border border-primary/20 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary/5"
-                >
-                  <MessageCircle className="h-4 w-4" aria-hidden /> Talk it through
-                </Link>
-              </div>
             </section>
 
             <section className="border border-primary/10 bg-white p-5 sm:p-7 lg:col-span-2" aria-labelledby="saved-options">

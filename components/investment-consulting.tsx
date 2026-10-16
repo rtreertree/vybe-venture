@@ -16,6 +16,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ConsultingChat } from "@/components/consulting-chat";
 import {
+  accountSlug,
   readAccounts,
   writeAccounts,
   type AccountRecord,
@@ -346,6 +347,20 @@ export function InvestmentConsulting() {
             <div className="flex min-h-12 w-full min-w-0 max-w-full items-center border border-primary/20 bg-white px-3 text-sm font-semibold text-primary sm:px-4">
               <span className="min-w-0 wrap-anywhere">{account.accountName}</span>
             </div>
+            <nav aria-label="Selected account pages" className="mt-3 flex flex-wrap gap-2">
+              <Link
+                href={`/account/${encodeURIComponent(accountSlug(account.accountName, account.id))}`}
+                className="inline-flex min-h-11 items-center justify-center border border-primary/25 px-3 text-sm font-semibold text-primary transition-colors hover:bg-primary/5"
+              >
+                Account overview
+              </Link>
+              <Link
+                href={`/account/${encodeURIComponent(accountSlug(account.accountName, account.id))}/create`}
+                className="inline-flex min-h-11 items-center justify-center bg-accent px-3 text-sm font-semibold text-primary transition-colors hover:bg-accent/90"
+              >
+                Explore options
+              </Link>
+            </nav>
           </div>
         </div>
 
