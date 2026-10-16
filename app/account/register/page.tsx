@@ -15,7 +15,7 @@ export default function AccountRegisterPage() {
         <div className="mx-auto flex w-full max-w-xl flex-1 flex-col">
           <div className="border-b border-primary/10 bg-primary px-6 py-5 text-white sm:px-10">
             <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">Your new account</p>
-            <p className="mt-1 text-sm leading-6 text-white/75">Two quick details help us make the conversation specific to this account.</p>
+            <p className="mt-1 text-sm leading-6 text-white/75">A few quick details help us make the conversation specific to this account.</p>
           </div>
           <aside aria-label="Prototype privacy notice" className="border-b border-risk/30 bg-risk/10 px-6 py-4 text-sm leading-6 text-primary sm:px-10">
             <p className="font-semibold">Prototype privacy note</p>

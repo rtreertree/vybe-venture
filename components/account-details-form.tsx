@@ -24,10 +24,46 @@ const steps = [
     placeholder: "e.g. Save for a home deposit in five years",
     autoComplete: "off",
   },
+  {
+    id: "targetValue",
+    eyebrow: "Your target",
+    title: "What value would you like this account to reach?",
+    description: "Move the slider to choose a target from $500 to $100 million. Leave it unset if you have not decided yet.",
+    label: "Target value (USD)",
+    placeholder: "e.g. 50000 (optional)",
+    autoComplete: "off",
+  },
 ] as const;
 
-const emptyAnswers = { accountName: "", goal: "" };
+const emptyAnswers = { accountName: "", goal: "", targetValue: "" };
 const draftKey = "account_draft";
+const targetMarks = [500, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000];
+const targetSliderMax = (targetMarks.length - 1) * 20;
+const formatTarget = (amount: number) => new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+}).format(amount);
+
+function targetFromSlider(position: number) {
+  const segment = Math.min(Math.floor(position / 20), targetMarks.length - 2);
+  const fraction = (position - segment * 20) / 20;
+  return Math.round(targetMarks[segment] + (targetMarks[segment + 1] - targetMarks[segment]) * fraction);
+}
+
+function sliderFromTarget(amount: number) {
+  const boundedAmount = Math.max(targetMarks[0], Math.min(amount, targetMarks[targetMarks.length - 1]));
+  const segment = targetMarks.findIndex((mark, index) => index < targetMarks.length - 1 && boundedAmount <= targetMarks[index + 1]);
+  if (segment < 0) return targetSliderMax;
+  return Math.round(segment * 20 + ((boundedAmount - targetMarks[segment]) / (targetMarks[segment + 1] - targetMarks[segment])) * 20);
+}
+
+function isValidTargetAnswer(value: string) {
+  if (value.trim() === "") return true;
+  const amount = Number(value);
+  return /^\d+(?:\.\d{1,2})?$/u.test(value) && Number.isFinite(amount) && amount >= 500 && amount <= 100_000_000;
+}
 
 export function AccountDetailsForm() {
   const [step, setStep] = useState(0);
@@ -63,13 +99,16 @@ export function AccountDetailsForm() {
               && typeof draftAnswers.accountName === "string"
               && typeof draftAnswers.goal === "string"
             ) {
+              const savedTarget = typeof draftAnswers.targetValue === "string" ? draftAnswers.targetValue : "";
+              const hasTargetQuestion = typeof draftAnswers.targetValue === "string" && isValidTargetAnswer(savedTarget);
               const restoredAnswers = {
                 accountName: draftAnswers.accountName,
                 goal: draftAnswers.goal,
+                targetValue: isValidTargetAnswer(savedTarget) ? savedTarget : "",
               };
-              setStep(draft.step as number);
+              setStep(hasTargetQuestion || draft.complete !== true ? draft.step as number : steps.length - 1);
               setAnswers(restoredAnswers);
-              setIsComplete(draft.complete === true && Boolean(restoredAnswers.accountName.trim() && restoredAnswers.goal.trim()));
+              setIsComplete(hasTargetQuestion && draft.complete === true && Boolean(restoredAnswers.accountName.trim() && restoredAnswers.goal.trim()));
               setIsRestored(true);
               return;
             }
@@ -86,12 +125,16 @@ export function AccountDetailsForm() {
               && typeof record.accountName === "string"
               && typeof record.goal === "string"
             ) {
+              const savedTarget = record.targetValue;
+              const hasValidTarget = savedTarget === null || (typeof savedTarget === "number" && isValidTargetAnswer(String(savedTarget)));
               const restoredAnswers = {
                 accountName: record.accountName,
                 goal: record.goal,
+                targetValue: typeof savedTarget === "number" && hasValidTarget ? String(savedTarget) : "",
               };
               setAnswers(restoredAnswers);
-              setIsComplete(Boolean(restoredAnswers.accountName.trim() && restoredAnswers.goal.trim()));
+              setStep(steps.length - 1);
+              setIsComplete(Object.prototype.hasOwnProperty.call(record, "targetValue") && hasValidTarget && Boolean(restoredAnswers.accountName.trim() && restoredAnswers.goal.trim()));
             }
           } catch {
           }
@@ -125,8 +168,14 @@ export function AccountDetailsForm() {
 
   const continueFlow = () => {
     const trimmedValue = value.trim();
-    if (!trimmedValue) {
+    if (question.id !== "targetValue" && !trimmedValue) {
       setError(`Please enter an ${question.label.toLowerCase()} to continue.`);
+      return;
+    }
+
+    const targetValue = trimmedValue === "" ? null : Number(trimmedValue);
+    if (question.id === "targetValue" && !isValidTargetAnswer(trimmedValue)) {
+      setError("Choose a target between $500 and $100,000,000, or leave it unset.");
       return;
     }
 
@@ -142,10 +191,10 @@ export function AccountDetailsForm() {
         id: createAccountId(),
         accountName: answers.accountName.trim(),
         goal: answers.goal.trim(),
+        targetValue,
       };
       window.localStorage.setItem("account_register", JSON.stringify(completedAnswers));
-      setAnswers(completedAnswers);
-      if (persistDraft(step, completedAnswers, true)) {
+      if (persistDraft(step, answers, true)) {
         setIsComplete(true);
       }
     } catch {
@@ -210,7 +259,44 @@ export function AccountDetailsForm() {
           <h1 className="mt-3 max-w-2xl font-display text-3xl font-bold leading-tight text-primary sm:text-4xl">{question.title}</h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-ink/70 sm:text-base sm:leading-7">{question.description}</p>
           <label htmlFor={question.id} className="mt-8 block text-sm font-semibold text-primary">{question.label}</label>
-          <input id={question.id} value={value} autoComplete={question.autoComplete} onChange={(event) => { const nextAnswers = { ...answers, [question.id]: event.target.value }; setAnswers(nextAnswers); persistDraft(step, nextAnswers); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); continueFlow(); } }} placeholder={question.placeholder} aria-invalid={Boolean(error) || undefined} className="mt-2 min-h-14 w-full border border-primary/20 bg-light-surface px-4 text-base text-primary outline-none placeholder:text-secondary/55 focus:border-primary focus:ring-2 focus:ring-accent/40" />
+          {question.id === "targetValue" ? (
+            <div className="mt-3">
+              <output htmlFor={question.id} className="block font-display text-3xl font-bold text-primary">
+                {value === "" ? "No target set" : formatTarget(Number(value))}
+              </output>
+              <input
+                id={question.id}
+                type="range"
+                min={0}
+                max={targetSliderMax}
+                step={1}
+                value={value === "" ? 0 : sliderFromTarget(Number(value))}
+                aria-valuetext={value === "" ? "No target set" : formatTarget(Number(value))}
+                onChange={(event) => {
+                  const nextAnswers = { ...answers, targetValue: String(targetFromSlider(Number(event.target.value))) };
+                  setAnswers(nextAnswers);
+                  persistDraft(step, nextAnswers);
+                }}
+                onClick={(event) => {
+                  if (value !== "" || Number(event.currentTarget.value) !== 0) return;
+                  const nextAnswers = { ...answers, targetValue: "500" };
+                  setAnswers(nextAnswers);
+                  persistDraft(step, nextAnswers);
+                }}
+                className="mt-5 h-11 w-full cursor-pointer accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              />
+              <div className="flex justify-between gap-1 text-[10px] font-semibold text-secondary sm:text-xs" aria-hidden="true">
+                <span>$500</span><span>$10k</span><span>$100k</span><span>$1m</span><span>$10m</span><span>$100m</span>
+              </div>
+              {value !== "" && (
+                <button type="button" onClick={() => { const nextAnswers = { ...answers, targetValue: "" }; setAnswers(nextAnswers); persistDraft(step, nextAnswers); }} className="mt-5 min-h-11 text-sm font-semibold text-secondary underline underline-offset-4 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+                  I don&apos;t have a target yet
+                </button>
+              )}
+            </div>
+          ) : (
+            <input id={question.id} value={value} autoComplete={question.autoComplete} onChange={(event) => { const nextAnswers = { ...answers, [question.id]: event.target.value }; setAnswers(nextAnswers); persistDraft(step, nextAnswers); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); continueFlow(); } }} placeholder={question.placeholder} aria-invalid={Boolean(error) || undefined} className="mt-2 min-h-14 w-full border border-primary/20 bg-light-surface px-4 text-base text-primary outline-none placeholder:text-secondary/55 focus:border-primary focus:ring-2 focus:ring-accent/40" />
+          )}
           {error && <p role="alert" className="mt-3 text-sm font-medium text-risk">{error}</p>}
         </div>
       </div>

@@ -45,9 +45,7 @@ function personalFromProfile(profile: Profile): PersonalProfile {
     };
 }
 
-function planningFromProfile(profile: Profile): AccountPlanning {
-    const targetValue = profile.target_value;
-
+function planningFromProfile(profile: Profile, targetValue: number | null): AccountPlanning {
     return {
         targetAmount: typeof targetValue === "number" && Number.isFinite(targetValue) && targetValue >= 0
             ? { amount: targetValue, currency: "USD" }
@@ -58,6 +56,12 @@ function planningFromProfile(profile: Profile): AccountPlanning {
         preferredProducts: profileText(profile, "preferred_products"),
         excludedIndustries: profileText(profile, "excluded_industries"),
     };
+}
+
+function validTargetValue(value: unknown): number | null {
+    return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100_000_000
+        ? value
+        : null;
 }
 
 function timeframeYearsFromProfile(profile: Profile) {
@@ -106,6 +110,7 @@ export default function ChatPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
     const [draftWarning, setDraftWarning] = useState<string | null>(null);
+    const legacyTargetValueRef = useRef<number | null>(null);
     const viewportRef = useRef<HTMLDivElement>(null);
     const messageListRef = useRef<HTMLDivElement>(null);
 
@@ -160,6 +165,9 @@ export default function ChatPage() {
                     if (isRecord(parsed)) {
                         const restoredMessages = restoreMessages(parsed.messages);
                         if (restoredMessages.length) {
+                            const savedState = isRecord(parsed.state) ? parsed.state : null;
+                            const savedProfile = isRecord(savedState?.profile) ? savedState.profile : null;
+                            legacyTargetValueRef.current = validTargetValue(savedProfile?.target_value ?? parsed.legacyTargetValue);
                             const restoredState = sanitizeState(parsed.state, fields);
                             hydrate(restoredState.profile, restoredMessages, restoredState.counters);
                             return;
@@ -228,7 +236,6 @@ export default function ChatPage() {
                 job: "What do you do for work?",
                 income_sources: "What are your sources of income?",
                 main_expenses: "What regular expenses or financial commitments should we keep in mind?",
-                target_value: "What amount in USD are you hoping this account will reach? It's fine if you haven't set a target yet.",
                 timeframe: "About how many years do you expect to keep this money in the account before using it? A rough estimate is fine.",
                 liquidity_needs: "When might you need access to this money?",
                 loss_reaction: "How might you feel if this account temporarily lost value?",
@@ -263,7 +270,7 @@ export default function ChatPage() {
 
         const timeout = window.setTimeout(() => {
             try {
-                window.localStorage.setItem(CHAT_DRAFT_KEY, JSON.stringify({ state, messages }));
+                window.localStorage.setItem(CHAT_DRAFT_KEY, JSON.stringify({ state, messages, legacyTargetValue: legacyTargetValueRef.current }));
                 setDraftWarning(null);
             } catch {
                 setDraftWarning("We couldn't save your conversation progress in this browser. Keep this tab open until you finish.");
@@ -306,6 +313,9 @@ export default function ChatPage() {
             const accountGoal = typeof account?.goal === "string" ? account.goal.trim() : "No goal specified";
             const accountId = typeof account.id === "string" ? account.id : null;
             if (!accountId) throw new Error("Account ID missing");
+            const targetValue = Object.prototype.hasOwnProperty.call(account, "targetValue")
+                ? validTargetValue(account.targetValue)
+                : legacyTargetValueRef.current;
             const personal = personalFromProfile(sanitized.planning);
             const personalProfileResult = readPersonalProfile();
             if (!personalProfileResult.ok) throw new Error(personalProfileResult.message);
@@ -317,7 +327,7 @@ export default function ChatPage() {
                 accountName,
                 goal: accountGoal,
                 timeframeYears: timeframeYearsFromProfile(sanitized.planning),
-                planning: planningFromProfile(sanitized.planning),
+                planning: planningFromProfile(sanitized.planning, targetValue),
                 createdAt: new Date().toISOString(),
                 selectedProducts: [],
                 assetExamples: null,

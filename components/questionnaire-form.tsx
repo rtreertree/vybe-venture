@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, CalendarDays, Check, Sparkles } from "lucide-react";
 
@@ -52,7 +52,7 @@ const questions: Question[] = [
     id: "age",
     eyebrow: "About you",
     title: "How old are you?",
-    description: "Your age helps us understand your financial stage and planning needs.",
+    description: "Move the slider to select your age. This helps us understand your financial stage and planning needs.",
     input: {
       type: "number",
       label: "Age",
@@ -100,19 +100,44 @@ const questions: Question[] = [
     id: "incomeAmount",
     eyebrow: "Your income",
     title: "What is your annual income?",
-    description: "An estimate is fine. This helps us understand your financial situation and plan realistically.",
+    description: "Move the slider to estimate your yearly income in USD, from $500 to $100 million.",
     input: {
       type: "number",
       label: "Annual income",
       placeholder: "Enter your income",
       suffix: "USD",
-      min: 0,
+      min: 500,
     },
   },
 ];
 
 const emptyAnswers = () => questions.map(() => "");
 const draftKey = "questionnaire_draft";
+const incomeMarks = [500, 10_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 10_000_000, 100_000_000];
+const incomeSliderMax = (incomeMarks.length - 1) * 20;
+const formatIncome = (amount: number) => new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+}).format(amount);
+
+function incomeFromSlider(position: number) {
+  const segment = Math.min(Math.floor(position / 20), incomeMarks.length - 2);
+  const fraction = (position - segment * 20) / 20;
+  return Math.round(incomeMarks[segment] + (incomeMarks[segment + 1] - incomeMarks[segment]) * fraction);
+}
+
+function sliderFromIncome(amount: number) {
+  const boundedAmount = Math.max(incomeMarks[0], Math.min(amount, incomeMarks[incomeMarks.length - 1]));
+  const segment = incomeMarks.findIndex((mark, index) => index < incomeMarks.length - 1 && boundedAmount <= incomeMarks[index + 1]);
+  if (segment < 0) return incomeSliderMax;
+  return Math.round(segment * 20 + ((boundedAmount - incomeMarks[segment]) / (incomeMarks[segment + 1] - incomeMarks[segment])) * 20);
+}
+
+function normalizeIncomeAnswer(answers: string[]) {
+  return answers.map((answer, index) => questions[index].id === "incomeAmount" && answer.trim() !== "" && Number(answer) < 500 ? "" : answer);
+}
 
 function answersFromCompletedRecord(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -129,7 +154,7 @@ function answersFromCompletedRecord(value: unknown) {
       if (typeof answer !== "number" && typeof answer !== "string") return "";
       if (typeof answer === "string" && !answer.trim()) return "";
       const number = typeof answer === "number" ? answer : Number(answer);
-      return Number.isFinite(number) ? String(number) : "";
+      return Number.isFinite(number) && (question.id !== "incomeAmount" || number >= 500) ? String(number) : "";
     }
     return typeof answer === "string" ? answer : "";
   });
@@ -178,7 +203,6 @@ export function QuestionnaireForm() {
   const [isRestored, setIsRestored] = useState(false);
   const [showRequired, setShowRequired] = useState(false);
   const [saveError, setSaveError] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const restore = () => {
@@ -199,7 +223,7 @@ export function QuestionnaireForm() {
               && draft.answers.length === questions.length
               && draft.answers.every((answer) => typeof answer === "string")
             ) {
-              const restoredAnswers = draft.answers as string[];
+              const restoredAnswers = normalizeIncomeAnswer(draft.answers as string[]);
               setStep(draft.step as number);
               setAnswers(restoredAnswers);
               setIsComplete(draft.complete === true && isCompleteAnswerSet(restoredAnswers));
@@ -265,7 +289,7 @@ export function QuestionnaireForm() {
       if (question.input.min !== undefined && numericValue < question.input.min) {
         return question.id === "age"
           ? "You must be at least 18 to continue."
-          : "Income must be $0 or more.";
+          : "Annual income must be at least $500.";
       }
 
       if (question.input.max !== undefined && numericValue > question.input.max) {
@@ -299,7 +323,7 @@ export function QuestionnaireForm() {
   };
 
   const next = () => {
-    const response = question.input ? inputRef.current?.value.trim() ?? answer.trim() : answer.trim();
+    const response = answer.trim();
     const validationMessage = validateResponse(response);
 
     if (validationMessage) {
@@ -403,18 +427,46 @@ export function QuestionnaireForm() {
                 );
               })}
             </div>
+          ) : question.id === "age" || question.id === "incomeAmount" ? (
+            <div className="mt-8 pb-4">
+              <label htmlFor={`question-${step}`} className="block text-sm font-semibold text-primary">{question.input?.label}</label>
+              <output htmlFor={`question-${step}`} className="mt-3 block font-display text-3xl font-bold text-primary">
+                {answer === "" ? `Select your ${question.id === "age" ? "age" : "annual income"}` : question.id === "age" ? `${answer} years old` : formatIncome(Number(answer))}
+              </output>
+              {question.id === "incomeAmount" && answer !== "" && (
+                <p className="mt-2 text-sm text-secondary">About {formatIncome(Number(answer) / 12)} per month</p>
+              )}
+              <input
+                id={`question-${step}`}
+                type="range"
+                min={question.id === "age" ? 18 : 0}
+                max={question.id === "age" ? 120 : incomeSliderMax}
+                step={1}
+                value={answer === "" ? question.id === "age" ? 18 : 0 : question.id === "age" ? Number(answer) : sliderFromIncome(Number(answer))}
+                aria-describedby="question-help"
+                aria-valuetext={answer === "" ? "No value selected" : question.id === "age" ? `${answer} years old` : formatIncome(Number(answer))}
+                onChange={(event) => updateAnswer(String(question.id === "age" ? Number(event.target.value) : incomeFromSlider(Number(event.target.value))))}
+                onClick={(event) => {
+                  if (answer !== "" || Number(event.currentTarget.value) !== (question.id === "age" ? 18 : 0)) return;
+                  updateAnswer(question.id === "age" ? "18" : "500");
+                }}
+                className="mt-5 h-11 w-full cursor-pointer accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              />
+              <div className="flex justify-between text-xs font-semibold text-secondary" aria-hidden="true">
+                <span>{question.id === "age" ? "18 years" : "$500"}</span>
+                <span>{question.id === "age" ? "120 years" : "$100m"}</span>
+              </div>
+            </div>
           ) : question.input ? (
             <div className="mt-8 pb-4">
               <label htmlFor={`question-${step}`} className="block text-sm font-semibold text-primary">{question.input.label}</label>
               <div className="relative mt-2 flex items-center border border-primary/20 bg-light-surface focus-within:border-primary focus-within:ring-2 focus-within:ring-accent/40">
                 <input
-                  ref={inputRef}
                   id={`question-${step}`}
                   type={question.input.type}
                   value={answer}
                   min={question.input.min}
                   max={question.input.max}
-                  step={question.id === "age" ? 1 : 1000}
                   inputMode={question.input.type === "number" ? "numeric" : undefined}
                   autoComplete={question.input.autoComplete}
                   placeholder={question.input.placeholder}
