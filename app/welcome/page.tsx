@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowRight, CheckCircle2, LayoutDashboard, RotateCcw, ShieldAlert, Sparkles } from "lucide-react";
+import { readAccounts } from "@/libs/account-client";
+import { tokenHeaders } from "@/libs/user-token";
 
 const onboardingStorageKeys = [
   "questionnaire_draft",
@@ -17,11 +19,9 @@ const onboardingStorageKeys = [
   "personal_profile",
 ];
 
-function getNextDestination() {
-  if (typeof window === "undefined") return "/";
-
-  const savedAccounts = window.localStorage.getItem("accounts_register");
-  if (savedAccounts) return "/consult";
+async function getNextDestination() {
+  const accounts = await readAccounts();
+  if (accounts.ok && accounts.accounts.length) return "/consult";
 
   const hasAccount = Boolean(window.localStorage.getItem("account_register"));
   if (hasAccount) return "/chat/register";
@@ -29,7 +29,7 @@ function getNextDestination() {
   const hasQuestionnaire = Boolean(window.localStorage.getItem("questionnaire_register"));
   if (hasQuestionnaire) return "/account/register";
 
-  return "/";
+  return "/question/register";
 }
 
 export default function WelcomePage() {
@@ -37,13 +37,16 @@ export default function WelcomePage() {
   const [restartError, setRestartError] = useState("");
   const [isRestarting, setIsRestarting] = useState(false);
 
-  const nextDestination = useMemo(() => getNextDestination(), []);
+  const [nextDestination, setNextDestination] = useState("/dashboard");
+  useEffect(() => { void getNextDestination().then(setNextDestination); }, []);
 
-  const restartSetup = () => {
+  const restartSetup = async () => {
     setIsRestarting(true);
     setRestartError("");
 
     try {
+      const response = await fetch("/api/user-data", { method: "DELETE", headers: tokenHeaders() });
+      if (!response.ok) throw new Error("Database reset failed.");
       onboardingStorageKeys.forEach((key) => window.localStorage.removeItem(key));
       for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
         const key = window.localStorage.key(index);
@@ -116,8 +119,8 @@ export default function WelcomePage() {
                 <div>
                   <h2 id="privacy-heading" className="font-display text-lg font-semibold text-primary">Important: this is a prototype</h2>
                   <ul className="mt-3 space-y-2 text-sm leading-6 text-primary/85">
-                    <li>Your drafts and completed setup details are stored in this browser on this device. They are not saved to a signed-in server account, and they do not sync between devices.</li>
-                    <li>Browser storage is not secure. Use sample values instead of real financial details, and don&apos;t use this prototype on a shared device.</li>
+                    <li>Your completed profile and accounts are saved to the database under your five-character code. Drafts may remain in this browser until setup is complete.</li>
+                    <li>Anyone with your code can access your data. Keep it private and use sample financial details in this prototype.</li>
                     <li>Chat and profile content is sent to the configured AI service to generate responses and normalize profile information.</li>
                   </ul>
                 </div>

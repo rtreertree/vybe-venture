@@ -20,12 +20,12 @@ export default function RegisterQuestionnairePage() {
           </div>
           <aside aria-label="Prototype privacy notice" className="border-b border-risk/30 bg-risk/10 px-6 py-4 text-sm leading-6 text-primary sm:px-10">
             <p className="font-semibold">Prototype privacy note</p>
-            <p className="mt-1">Your questionnaire, account details, and completed setup record are stored in this browser on this device—not in a signed-in server account. Browser storage is not secure; use sample values instead of real financial details, and don&apos;t use a shared device. Chat and profile content is sent to the configured AI service for responses and profile normalization. This prototype does not provide account-based saving or sync.</p>
+            <p className="mt-1">Your answers may be kept temporarily in this browser during setup. Your completed profile and accounts are saved to the database under your account code. Anyone with that code can open your data, so keep it private and use sample financial details. Chat and profile content is sent to the configured AI service for responses and profile normalization.</p>
           </aside>
           <QuestionnaireForm />
         </div>
       </main>
-      <footer className="border-t border-primary/10 bg-light-surface px-5 py-3 text-center text-[11px] leading-4 text-ink/50">Prototype only: details stay in this browser, but are not secure storage. Use sample data on shared devices.</footer>
+      <footer className="border-t border-primary/10 bg-light-surface px-5 py-3 text-center text-[11px] leading-4 text-ink/50">Prototype only: your account code is the key to your saved data. Keep it private and use sample details.</footer>
     </div>
   );
 }

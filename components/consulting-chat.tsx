@@ -3,6 +3,7 @@
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUp, RotateCcw, Trash2 } from "lucide-react";
 import type { AccountRecord } from "@/libs/account-client";
+import { tokenHeaders } from "@/libs/user-token";
 import { ChatComposerTextarea } from "@/components/chat-composer-textarea";
 
 export type ConsultingTopic = "general" | "details" | "news" | "what-if";
@@ -79,7 +80,7 @@ function openingMessage(topic: ConsultingTopic, accountName: string): Message {
 }
 
 export function ConsultingChat({ account, topic, context = "", sessionScope = "account" }: Props) {
-  const storageKey = `consult_chat_${account.id}_${topic}_${sessionScope}`;
+  const storageKey = `/api/conversations?accountId=${encodeURIComponent(account.id)}&topic=${encodeURIComponent(topic)}&scope=${encodeURIComponent(sessionScope)}`;
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isReady, setIsReady] = useState(false);
@@ -92,24 +93,12 @@ export function ConsultingChat({ account, topic, context = "", sessionScope = "a
 
   const suggestedPrompts = promptSuggestions(topic, account, context);
 
-  const restoreConversation = useCallback(() => {
+  const restoreConversation = useCallback(async () => {
     try {
-      const saved = window.localStorage.getItem(storageKey);
-      if (!saved) {
-        setMessages([openingMessage(topic, account.accountName)]);
-        setStorageIssue(null);
-        return;
-      }
-
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(saved);
-      } catch {
-        setMessages([openingMessage(topic, account.accountName)]);
-        setStorageIssue("invalid");
-        return;
-      }
-      const restoredMessages = parseMessageList(parsed);
+      const response = await fetch(storageKey, { headers: tokenHeaders(), cache: "no-store" });
+      if (!response.ok) throw new Error("Conversation could not be loaded.");
+      const saved = await response.json() as { messages?: unknown };
+      const restoredMessages = parseMessageList(saved.messages);
       if (!restoredMessages) {
         setMessages([openingMessage(topic, account.accountName)]);
         setStorageIssue("invalid");
@@ -126,7 +115,7 @@ export function ConsultingChat({ account, topic, context = "", sessionScope = "a
   }, [account.accountName, storageKey, topic]);
 
   useEffect(() => {
-    const timeout = window.setTimeout(restoreConversation, 0);
+    const timeout = window.setTimeout(() => { void restoreConversation(); }, 0);
     return () => window.clearTimeout(timeout);
   }, [restoreConversation]);
 
@@ -136,14 +125,16 @@ export function ConsultingChat({ account, topic, context = "", sessionScope = "a
     }
   }, [error, isReady, isSending, messages, storageIssue]);
 
-  const commitMessages = (nextMessages: Message[]) => {
+  const commitMessages = async (nextMessages: Message[]) => {
     const boundedMessages = nextMessages.slice(-30);
-    setMessages(boundedMessages);
     try {
-      window.localStorage.setItem(storageKey, JSON.stringify(boundedMessages));
+      const response = await fetch(storageKey, { method: "PUT", headers: { ...tokenHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ messages: boundedMessages }) });
+      if (!response.ok) throw new Error("Conversation could not be saved.");
+      setMessages(boundedMessages);
       setStorageIssue(null);
     } catch {
       setStorageIssue("save");
+      throw new Error("The conversation could not be saved to your account. Please retry your message.");
     }
   };
 
@@ -188,7 +179,7 @@ export function ConsultingChat({ account, topic, context = "", sessionScope = "a
       if (typeof result !== "object" || result === null || typeof (result as { reply?: unknown }).reply !== "string" || !(result as { reply: string }).reply.trim()) {
         throw new Error("The assistant returned an invalid response.");
       }
-      commitMessages([...nextMessages, { role: "assistant", content: (result as { reply: string }).reply }]);
+      await commitMessages([...nextMessages, { role: "assistant", content: (result as { reply: string }).reply }]);
       setInput((current) => current === text ? "" : current);
     } catch (requestError) {
       const message = requestError instanceof Error && requestError.name === "Error" && requestError.message
@@ -206,9 +197,10 @@ export function ConsultingChat({ account, topic, context = "", sessionScope = "a
     void sendMessage();
   };
 
-  const clearConversation = () => {
+  const clearConversation = async () => {
     try {
-      window.localStorage.removeItem(storageKey);
+      const response = await fetch(storageKey, { method: "DELETE", headers: tokenHeaders() });
+      if (!response.ok) throw new Error("Conversation could not be cleared.");
       setMessages([openingMessage(topic, account.accountName)]);
       setError("");
       setStorageIssue(null);
@@ -220,25 +212,21 @@ export function ConsultingChat({ account, topic, context = "", sessionScope = "a
 
   const retryStorage = () => {
     if (storageIssue === "read") {
-      restoreConversation();
+      void restoreConversation();
       return;
     }
     if (storageIssue === "save") {
-      try {
-        window.localStorage.setItem(storageKey, JSON.stringify(messages));
-        setStorageIssue(null);
-      } catch {
-        setStorageIssue("save");
-      }
+      setStorageIssue(null);
+      void sendMessage();
       return;
     }
-    clearConversation();
+    void clearConversation();
   };
 
   const storageMessage: Record<Exclude<StorageIssue, null>, string> = {
     read: "Conversation history could not be read. You can keep chatting, but saved history may not be available.",
     invalid: "The saved conversation is unreadable. Start fresh to remove the unreadable history.",
-    save: "This conversation is available here, but changes could not be saved in this browser.",
+    save: "This conversation is available here, but changes could not be saved to your account.",
     clear: "Saved conversation history could not be cleared. Your messages are still available here.",
   };
 

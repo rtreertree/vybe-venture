@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+  runtime  = "nodejs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+// Existing starter tables are retained so the migration does not erase their data.
+model User {
+  id    Int     @id @default(autoincrement())
+  email String  @unique
+  name  String?
+  posts Post[]
+}
+
+model Post {
+  id        Int     @id @default(autoincrement())
+  title     String
+  content   String?
+  published Boolean @default(false)
+  author    User    @relation(fields: [authorId], references: [id])
+  authorId  Int
+}
+
+model AppUser {
+  token         String            @id @db.VarChar(5)
+  profile       Json?
+  createdAt     DateTime          @default(now())
+  accounts      AppAccount[]
+  conversations AppConversation[]
+}
+
+model AppAccount {
+  id        String   @id @db.VarChar(128)
+  userToken String   @db.VarChar(5)
+  user      AppUser  @relation(fields: [userToken], references: [token], onDelete: Cascade)
+  record    Json
+  createdAt DateTime @default(now())
+
+  @@index([userToken, createdAt])
+}
+
+model AppConversation {
+  id        String   @id @default(uuid())
+  userToken String   @db.VarChar(5)
+  user      AppUser  @relation(fields: [userToken], references: [token], onDelete: Cascade)
+  accountId String   @db.VarChar(128)
+  topic     String   @db.VarChar(32)
+  scope     String   @db.VarChar(128)
+  messages  Json
+  updatedAt DateTime @updatedAt
+
+  @@unique([userToken, accountId, topic, scope])
+}

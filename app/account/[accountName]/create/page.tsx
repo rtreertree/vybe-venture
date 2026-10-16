@@ -35,9 +35,9 @@ function createFallbackExamples(): AssetResult {
   };
 }
 
-function readAccountForCurrentRoute(): { ok: true; onboarding: StoredOnboarding | null } | { ok: false; message: string } {
+async function readAccountForCurrentRoute(): Promise<{ ok: true; onboarding: StoredOnboarding | null } | { ok: false; message: string }> {
   const slug = window.location.pathname.split("/")[2] ?? "";
-  const accountResult = readAccounts();
+  const accountResult = await readAccounts();
   if (!accountResult.ok) return accountResult;
   const matchingAccount = accountResult.accounts.find((account) => accountSlug(account.accountName, account.id) === slug);
   if (!matchingAccount) return { ok: true, onboarding: null };
@@ -91,10 +91,10 @@ export default function CreateAccountPage() {
       const id = typeof stored?.account?.id === "string" ? stored.account.id : null;
       if (id) {
         try {
-          updateAccountRecord(id, (account) => ({ ...account, assetExamples: generated, selectedProducts: [] }));
+          await updateAccountRecord(id, (account) => ({ ...account, assetExamples: generated, selectedProducts: [] }));
           setStorageError("");
         } catch (storageFailure) {
-          setStorageError(storageFailure instanceof Error ? storageFailure.message : "Examples could not be saved in this browser.");
+          setStorageError(storageFailure instanceof Error ? storageFailure.message : "Examples could not be saved to your account.");
         }
       }
     } catch {
@@ -104,17 +104,17 @@ export default function CreateAccountPage() {
       const id = typeof stored?.account?.id === "string" ? stored.account.id : null;
       if (id) {
         try {
-          updateAccountRecord(id, (account) => ({ ...account, assetExamples: fallback, selectedProducts: [] }));
+          await updateAccountRecord(id, (account) => ({ ...account, assetExamples: fallback, selectedProducts: [] }));
         } catch (storageFailure) {
-          setStorageError(storageFailure instanceof Error ? storageFailure.message : "Examples could not be saved in this browser.");
+          setStorageError(storageFailure instanceof Error ? storageFailure.message : "Examples could not be saved to your account.");
         }
       }
     }
   }, []);
 
   useEffect(() => {
-    const accountResult = readAccountForCurrentRoute();
-    const timeout = window.setTimeout(() => {
+    const timeout = window.setTimeout(async () => {
+      const accountResult = await readAccountForCurrentRoute();
       if (!accountResult.ok) {
         setAccountLoadError(accountResult.message);
         return;
@@ -124,7 +124,7 @@ export default function CreateAccountPage() {
       const stored = accountResult.onboarding;
       setOnboarding(stored);
       if (!stored) {
-        setError("This account could not be found on this device.");
+        setError("This account could not be found for your code.");
         return;
       }
       const existingExamples = stored.assetExamples;
@@ -155,18 +155,18 @@ export default function CreateAccountPage() {
         ? [...current, id]
         : [current[1], current[2], id].filter(Boolean) as string[]);
   };
-  const saveSelections = () => {
+  const saveSelections = async () => {
     if (!accountId || !result) return;
     const selectedProducts = result.assets
       .filter((asset) => selected.includes(asset.id))
       .map(({ id, name, symbol }) => ({ id, name, symbol, examplesId: result.id }));
     try {
-      updateAccountRecord(accountId, (account) => ({ ...account, assetExamples: result, selectedProducts }));
+      await updateAccountRecord(accountId, (account) => ({ ...account, assetExamples: result, selectedProducts }));
       setStorageError("");
       setSavedSelection([...selected]);
-      setSavedMessage(selectedProducts.length ? "Your selected assets are saved in this browser." : "Your saved asset choices were cleared.");
+      setSavedMessage(selectedProducts.length ? "Your selected assets are saved." : "Your saved asset choices were cleared.");
     } catch (storageFailure) {
-      setStorageError(storageFailure instanceof Error ? storageFailure.message : "Your product choices could not be saved in this browser.");
+      setStorageError(storageFailure instanceof Error ? storageFailure.message : "Your product choices could not be saved to your account.");
       setSavedMessage("");
     }
   };

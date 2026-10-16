@@ -19,7 +19,7 @@ export default function AccountRegisterPage() {
           </div>
           <aside aria-label="Prototype privacy notice" className="border-b border-risk/30 bg-risk/10 px-6 py-4 text-sm leading-6 text-primary sm:px-10">
             <p className="font-semibold">Prototype privacy note</p>
-            <p className="mt-1">Your questionnaire, account details, and completed setup record are stored in this browser on this device—not in a signed-in server account. Browser storage is not secure; use sample values instead of real financial details, and don&apos;t use a shared device. When you add another account, details about your job, income sources, and regular expenses already shared on this device can carry forward so you do not need to repeat them; you can correct them if they have changed. Chat and profile content is sent to the configured AI service for responses and profile normalization. This prototype does not provide account-based saving or sync.</p>
+            <p className="mt-1">Your completed profile and accounts are saved to the database under your account code. Setup drafts may stay in this browser until completion. Anyone with the code can open your data, so keep it private and use sample financial details. Chat and profile content is sent to the configured AI service for responses and profile normalization.</p>
           </aside>
           <AccountDetailsForm />
         </div>

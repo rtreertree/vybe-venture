@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { RotateCcw } from "lucide-react";
+import { tokenHeaders, USER_TOKEN_KEY } from "@/libs/user-token";
 
 const USER_DATA_KEYS = [
   "questionnaire_draft",
@@ -16,18 +18,23 @@ const USER_DATA_KEYS = [
 ];
 
 export function ResetUserDataButton() {
+  const router = useRouter();
   const [message, setMessage] = useState("");
 
-  const reset = () => {
+  const reset = async () => {
     if (!window.confirm("Clear all saved prototype data from this browser? This cannot be undone.")) return;
 
     try {
+      const response = await fetch("/api/identity", { method: "DELETE", headers: tokenHeaders() });
+      if (!response.ok) throw new Error("Database reset failed.");
       USER_DATA_KEYS.forEach((key) => window.localStorage.removeItem(key));
       for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
         const key = window.localStorage.key(index);
         if (key?.startsWith("consult_chat_")) window.localStorage.removeItem(key);
       }
+      window.localStorage.removeItem(USER_TOKEN_KEY);
       setMessage("Saved data cleared.");
+      router.replace("/access");
     } catch {
       setMessage("Saved data could not be cleared.");
     }

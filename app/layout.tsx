@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import { Sora, Public_Sans } from "next/font/google";
 import "./globals.css";
+import { AccessGate } from "@/components/access-gate";
 
 const sora = Sora({
   variable: "--font-sora",
@@ -29,7 +31,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${sora.variable} ${publicSans.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col"><Suspense fallback={null}><AccessGate>{children}</AccessGate></Suspense></body>
     </html>
   );
 }

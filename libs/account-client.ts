@@ -1,40 +1,11 @@
 "use client";
 
-import {
-  isAccountRecord,
-  isRecord,
-  isLegacyAccountRecord,
-  isPersonalProfile,
-  type LegacyAccountRecord,
-  type AccountRecord,
-  type AssetExamples,
-  type PersonalProfile,
-  type SelectedProduct,
-} from "@/libs/account-model";
-
-export const ACCOUNTS_STORAGE_KEY = "accounts_register";
-export const PERSONAL_PROFILE_STORAGE_KEY = "personal_profile";
+import { isAccountRecord, isPersonalProfile, isRecord, type AccountRecord, type PersonalProfile } from "@/libs/account-model";
+import { tokenHeaders } from "@/libs/user-token";
 
 export type { AccountRecord } from "@/libs/account-model";
-
-export type AccountReadResult =
-  | { ok: true; accounts: AccountRecord[] }
-  | { ok: false; message: string };
-
-export type PersonalProfileReadResult =
-  | { ok: true; profile: PersonalProfile | null }
-  | { ok: false; message: string };
-
-const EMPTY_PERSONAL_PROFILE: PersonalProfile = {
-  name: null,
-  age: null,
-  gender: null,
-  investmentExperience: null,
-  job: null,
-  income: null,
-  incomeSources: null,
-  regularExpenses: null,
-};
+export type AccountReadResult = { ok: true; accounts: AccountRecord[] } | { ok: false; message: string };
+export type PersonalProfileReadResult = { ok: true; profile: PersonalProfile | null } | { ok: false; message: string };
 
 export function accountSlug(name: string, id: string) {
   const base = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "account";
@@ -42,160 +13,64 @@ export function accountSlug(name: string, id: string) {
 }
 
 export function createAccountId() {
-  return typeof crypto.randomUUID === "function"
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return crypto.randomUUID();
 }
 
-function yearsFromLegacyTimeframe(value: string | null) {
-  if (!value) return null;
-  const match = /^\s*(\d{1,2})\s*(?:years?|yrs?)\s*$/iu.exec(value);
-  if (!match) return null;
-  const years = Number(match[1]);
-  return Number.isInteger(years) && years >= 1 && years <= 50 ? years : null;
-}
-
-function migrateLegacyAccount(account: LegacyAccountRecord): AccountRecord {
-  const assetExamples: AssetExamples | null = account.assetExamples
-    ? {
-      ...account.assetExamples,
-      id: `legacy-${account.id}`,
-      createdAt: account.createdAt,
-    }
-    : null;
-  const selectedProducts: SelectedProduct[] = assetExamples
-    ? account.selectedProducts.flatMap((product) => {
-      const asset = assetExamples.assets.find((item) => item.id === product.id);
-      return asset ? [{ id: asset.id, name: asset.name, symbol: asset.symbol, examplesId: assetExamples.id }] : [];
-    })
-    : [];
-
-  return {
-    schemaVersion: 2,
-    id: account.id,
-    accountName: account.accountName,
-    goal: account.goal,
-    timeframeYears: yearsFromLegacyTimeframe(account.timeframe),
-    planning: account.planning,
-    createdAt: account.createdAt,
-    selectedProducts,
-    assetExamples,
-  };
-}
-
-function mergeLegacyProfiles(accounts: LegacyAccountRecord[]): PersonalProfile {
-  const profile = { ...EMPTY_PERSONAL_PROFILE };
-  for (const account of [...accounts].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))) {
-    for (const key of Object.keys(profile) as (keyof PersonalProfile)[]) {
-      if (profile[key] === null && account.personal[key] !== null) {
-        switch (key) {
-          case "name": profile.name = account.personal.name; break;
-          case "age": profile.age = account.personal.age !== null && account.personal.age >= 18 ? account.personal.age : null; break;
-          case "gender": profile.gender = account.personal.gender; break;
-          case "investmentExperience": profile.investmentExperience = account.personal.investmentExperience; break;
-          case "job": profile.job = account.personal.job; break;
-          case "income": profile.income = account.personal.income; break;
-          case "incomeSources": profile.incomeSources = account.personal.incomeSources; break;
-          case "regularExpenses": profile.regularExpenses = account.personal.regularExpenses; break;
-        }
-      }
-    }
+async function fetchUserData() {
+  const response = await fetch("/api/user-data", { headers: tokenHeaders(), cache: "no-store" });
+  if (!response.ok) throw new Error(response.status === 401 ? "Enter your account code to continue." : "Saved data could not be loaded from the database.");
+  const data: unknown = await response.json();
+  if (!isRecord(data) || !Array.isArray(data.accounts) || !data.accounts.every(isAccountRecord)
+    || (data.profile !== null && !isPersonalProfile(data.profile))) {
+    throw new Error("The database returned invalid account data.");
   }
-  return profile;
+  return { accounts: data.accounts as AccountRecord[], profile: data.profile as PersonalProfile | null };
 }
 
-function normalizeStoredPersonalProfile(value: unknown): PersonalProfile | null {
-  if (isPersonalProfile(value)) return value;
-  if (
-    !isRecord(value)
-    || typeof value.age !== "number"
-    || !Number.isInteger(value.age)
-    || value.age < 1
-    || value.age >= 18
-  ) {
-    return null;
-  }
-
-  const normalized = { ...value, age: null };
-  return isPersonalProfile(normalized) ? normalized : null;
-}
-
-export function readPersonalProfile(): PersonalProfileReadResult {
+export async function readAccounts(): Promise<AccountReadResult> {
   try {
-    const saved = window.localStorage.getItem(PERSONAL_PROFILE_STORAGE_KEY);
-    if (saved === null) return { ok: true, profile: null };
-    const parsed: unknown = JSON.parse(saved);
-    const profile = normalizeStoredPersonalProfile(parsed);
-    if (!profile) {
-      return { ok: false, message: "The saved personal profile is invalid. Your local data has not been changed." };
-    }
-    return { ok: true, profile };
-  } catch {
-    return { ok: false, message: "Personal profile storage could not be read. Your local data has not been changed." };
+    const data = await fetchUserData();
+    return { ok: true, accounts: data.accounts };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "Saved accounts could not be loaded." };
   }
 }
 
-export function writePersonalProfile(profile: PersonalProfile) {
-  if (!isPersonalProfile(profile)) throw new TypeError("Cannot save an invalid personal profile.");
-  window.localStorage.setItem(PERSONAL_PROFILE_STORAGE_KEY, JSON.stringify(profile));
-}
-
-export function readAccounts(): AccountReadResult {
+export async function readPersonalProfile(): Promise<PersonalProfileReadResult> {
   try {
-    const saved = window.localStorage.getItem(ACCOUNTS_STORAGE_KEY);
-    const parsed: unknown = saved === null ? [] : JSON.parse(saved);
-    if (!Array.isArray(parsed)) {
-      return { ok: false, message: "Saved accounts have an invalid format. Your local data has not been changed." };
-    }
-
-    const accounts: AccountRecord[] = [];
-    const legacyAccounts: LegacyAccountRecord[] = [];
-    for (const item of parsed) {
-      if (isAccountRecord(item)) accounts.push(item);
-      else if (isLegacyAccountRecord(item)) {
-        legacyAccounts.push(item);
-        accounts.push(migrateLegacyAccount(item));
-      } else {
-        return { ok: false, message: "One or more saved accounts could not be read. Your local data has not been changed." };
-      }
-    }
-
-    if (new Set(accounts.map((account) => account.id)).size !== accounts.length) {
-      return { ok: false, message: "Saved accounts contain duplicate IDs. Your local data has not been changed." };
-    }
-
-    if (legacyAccounts.length) {
-      const storedProfile = readPersonalProfile();
-      if (!storedProfile.ok) return storedProfile;
-      if (!storedProfile.profile) writePersonalProfile(mergeLegacyProfiles(legacyAccounts));
-      writeAccounts(accounts);
-    }
-
-    return { ok: true, accounts };
-  } catch {
-    return { ok: false, message: "Account storage could not be read or updated. Your local data has not been changed." };
+    const data = await fetchUserData();
+    return { ok: true, profile: data.profile };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "Your profile could not be loaded." };
   }
 }
 
-export function writeAccounts(accounts: AccountRecord[]) {
-  if (!accounts.every(isAccountRecord) || new Set(accounts.map((account) => account.id)).size !== accounts.length) {
-    throw new TypeError("Cannot save invalid account data.");
-  }
-  window.localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(accounts));
+export async function createAccountWithProfile(profile: PersonalProfile, account: AccountRecord) {
+  if (!isPersonalProfile(profile) || !isAccountRecord(account)) throw new TypeError("Invalid account details.");
+  const response = await fetch("/api/user-data", {
+    method: "POST",
+    headers: { ...tokenHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ profile, account }),
+  });
+  if (!response.ok) throw new Error(response.status === 409 ? "This account already exists." : "The account could not be saved to the database.");
+  window.dispatchEvent(new Event("account-data-changed"));
 }
 
-export function updateAccountRecord(
-  accountId: string,
-  update: (account: AccountRecord) => AccountRecord,
-) {
-  const result = readAccounts();
+export async function updateAccountRecord(accountId: string, update: (account: AccountRecord) => AccountRecord) {
+  const result = await readAccounts();
   if (!result.ok) throw new Error(result.message);
   const account = result.accounts.find((item) => item.id === accountId);
-  if (!account) throw new Error("This account is no longer available in this browser.");
+  if (!account) throw new Error("This account is no longer available.");
   const updatedAccount = update(account);
-  const accounts = result.accounts.map((item) => item.id === accountId ? updatedAccount : item);
-  writeAccounts(accounts);
-  return accounts;
+  if (updatedAccount.id !== accountId || !isAccountRecord(updatedAccount)) throw new TypeError("Invalid account update.");
+  const response = await fetch("/api/user-data", {
+    method: "PATCH",
+    headers: { ...tokenHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ account: updatedAccount }),
+  });
+  if (!response.ok) throw new Error("The account could not be saved to the database.");
+  window.dispatchEvent(new Event("account-data-changed"));
+  return result.accounts.map((item) => item.id === accountId ? updatedAccount : item);
 }
 
 export function readRecord(value: string | null): Record<string, unknown> | null {

@@ -18,7 +18,7 @@ import { ConsultingChat } from "@/components/consulting-chat";
 import {
   accountSlug,
   readAccounts,
-  writeAccounts,
+  updateAccountRecord,
   type AccountRecord,
 } from "@/libs/account-client";
 import {
@@ -162,8 +162,8 @@ export function InvestmentConsulting() {
   }, []);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      const accountResult = readAccounts();
+    const timeout = window.setTimeout(async () => {
+      const accountResult = await readAccounts();
       if (!accountResult.ok) {
         setAccountsError(accountResult.message);
         setIsReady(true);
@@ -230,7 +230,7 @@ export function InvestmentConsulting() {
     window.history.pushState(null, "", url);
   };
 
-  const saveDetails = () => {
+  const saveDetails = async () => {
     if (!account) return;
     const goal = details.goal.trim().slice(0, 300);
     if (!goal) {
@@ -267,11 +267,11 @@ export function InvestmentConsulting() {
         },
       };
       const updatedAccounts = accounts.map((item) => item.id === account.id ? updatedAccount : item);
-      writeAccounts(updatedAccounts);
+      await updateAccountRecord(account.id, () => updatedAccount);
       setAccounts(updatedAccounts);
-      setDetailsMessage("These details are saved in this browser on this device.");
+      setDetailsMessage("These details are saved to your account.");
     } catch {
-      setDetailsError("We couldn't save these details in this browser. Your previous account information is unchanged.");
+      setDetailsError("We couldn't save these details to your account. Your previous information is unchanged.");
     } finally {
       setIsSavingDetails(false);
     }
@@ -305,11 +305,11 @@ export function InvestmentConsulting() {
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-secondary">Investment consulting</p>
         <h1 className="mt-4 max-w-2xl font-display text-4xl font-bold leading-tight sm:text-6xl">Start with an account and a goal.</h1>
         {accountsError && <p role="alert" className="mt-4 text-sm font-medium text-risk">{accountsError}</p>}
-        <p className="mt-5 max-w-2xl text-base leading-7 text-ink/70">Your consulting topics use the goal and planning context saved with an account on this device.</p>
+        <p className="mt-5 max-w-2xl text-base leading-7 text-ink/70">Your consulting topics use the goal and planning context saved with your account.</p>
         <Link href="/question/register" className="mt-8 inline-flex min-h-12 items-center justify-center gap-3 bg-accent px-6 font-semibold text-primary transition-colors hover:bg-accent/90">
           Set up an account <ArrowRight className="h-5 w-5" aria-hidden />
         </Link>
-        <p className="mt-6 max-w-xl text-sm leading-6 text-secondary">This prototype stores account details in this browser. If your saved account is missing, confirm that you are on the same device and browser where you created it.</p>
+        <p className="mt-6 max-w-xl text-sm leading-6 text-secondary">If your account is missing, check that you entered the same account code.</p>
       </section>
     );
   }
@@ -381,7 +381,7 @@ export function InvestmentConsulting() {
       <aside className="my-6 flex items-start gap-3 border border-risk/30 bg-risk/10 p-4 sm:p-5" aria-label="Prototype privacy and investment notice">
         <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-risk" aria-hidden />
         <p className="min-w-0 wrap-anywhere text-sm leading-6 text-primary/85">
-          <strong>Prototype notice.</strong> Account and conversation details are stored in this browser, which is not secure; use sample data on a private device. Chat context is sent to the configured AI service. This tool is educational, not financial advice, and it does not provide live news or market data.
+          <strong>Prototype notice.</strong> Account and conversation details are saved to the database under your account code. Anyone with the code can open them, so use sample data and keep the code private. Chat context is sent to the configured AI service. This tool is educational, not financial advice, and it does not provide live news or market data.
         </p>
       </aside>
 

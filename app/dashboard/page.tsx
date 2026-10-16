@@ -287,9 +287,9 @@ export default function Page() {
   }, [loadEconomicBrief]);
 
   useEffect(() => {
-    const syncPortfolios = () => {
+    const syncPortfolios = async () => {
       try {
-        const result = readAccounts();
+        const result = await readAccounts();
         if (!result.ok) {
           setPortfolioError(result.message);
           setPortfoliosLoaded(true);
@@ -300,14 +300,15 @@ export default function Page() {
         setPortfolioError('');
         setPortfoliosLoaded(true);
       } catch {
-        setPortfolioError('Portfolio data could not be read from this device.');
+        setPortfolioError('Portfolio data could not be loaded from the database.');
         setPortfoliosLoaded(true);
       }
     };
 
-    syncPortfolios();
-    window.addEventListener('storage', syncPortfolios);
-    return () => window.removeEventListener('storage', syncPortfolios);
+    void syncPortfolios();
+    const refresh = () => { void syncPortfolios(); };
+    window.addEventListener('account-data-changed', refresh);
+    return () => window.removeEventListener('account-data-changed', refresh);
   }, []);
 
   useEffect(() => {
@@ -383,7 +384,7 @@ export default function Page() {
             <a href="#kpi-h-section">Market snapshot</a>
             <a href="#news-h-section">Market news</a>
           </nav>
-          <span className={dashboardClass('header__label')}>Personal finance</span>
+          <Link className={dashboardClass('header__label')} href="/access?switch=1">Account code</Link>
         </div>
       </header>
       <main className={dashboardClass('main')}>
@@ -510,8 +511,8 @@ export default function Page() {
               <div>
                 <h2 id="accounts-heading">Your accounts</h2>
               </div>
-              <Link className={dashboardClass('accounts-panel__add')} href="/account/register?new=1">
-                <Plus size={16} aria-hidden="true" /> <span>Add account</span>
+              <Link className={dashboardClass('accounts-panel__add')} href={portfolios.length ? "/account/register?new=1" : "/question/register"}>
+                <Plus size={16} aria-hidden="true" /> <span>{portfolios.length ? "Add account" : "Start setup"}</span>
               </Link>
             </div>
             {portfolios.length > 0 ? (

@@ -152,8 +152,8 @@ export function AccountPlanAdjustment({
   const router = useRouter();
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      const result = readPersonalProfile();
+    const timeout = window.setTimeout(async () => {
+      const result = await readPersonalProfile();
       if (result.ok) setProfile(result.profile);
       else setProfileNotice("Your saved personal profile could not be loaded. The assistant can still use this account’s details.");
       setIsReady(true);
@@ -236,7 +236,7 @@ export function AccountPlanAdjustment({
     }));
   };
 
-  const confirmSave = () => {
+  const confirmSave = async () => {
     const cleaned = cleanPlan(proposal);
     if (!isAccountPlanDraft(cleaned)) {
       setError("Check the account name, goal, timeframe, and target amount before saving.");
@@ -250,7 +250,7 @@ export function AccountPlanAdjustment({
     setIsSaving(true);
     setError("");
     try {
-      updateAccountRecord(account.id, (current) => {
+      await updateAccountRecord(account.id, (current) => {
         if (!samePlan(planFromAccount(current), original)) {
           throw new Error("This account changed elsewhere after the review began. Nothing was saved; reopen the review to compare the latest version.");
         }

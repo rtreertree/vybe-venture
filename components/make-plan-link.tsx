@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
-import { readAccounts } from "@/libs/account-client";
 
 type MakePlanLinkProps = {
   label?: string;
@@ -18,14 +17,8 @@ export function MakePlanLink({
   const [error, setError] = useState("");
 
   const startPlanning = () => {
-    const result = readAccounts();
-    if (!result.ok) {
-      setError(result.message);
-      return;
-    }
-
     setError("");
-    router.push(result.accounts.length > 0 ? "/dashboard" : "/question/register");
+    router.push("/access");
   };
 
   return (

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight, Check, MessageSquareText, Sparkles, Target } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { readAccounts, readPersonalProfile } from "@/libs/account-client";
 
 const flowSteps = [
@@ -20,7 +20,7 @@ type JourneyState = {
   helper: string;
 };
 
-function getJourneyState(): JourneyState {
+async function getJourneyState(): Promise<JourneyState> {
   if (typeof window === "undefined") {
     return {
       currentStep: 1,
@@ -32,8 +32,7 @@ function getJourneyState(): JourneyState {
   }
 
   try {
-    const accountsResult = readAccounts();
-    const personalProfileResult = readPersonalProfile();
+    const [accountsResult, personalProfileResult] = await Promise.all([readAccounts(), readPersonalProfile()]);
     const hasQuestionnaire = Boolean(window.localStorage.getItem("questionnaire_register"));
     const hasAccount = Boolean(window.localStorage.getItem("account_register"));
     const hasPersonal = personalProfileResult.ok && personalProfileResult.profile !== null;
@@ -89,7 +88,8 @@ function getJourneyState(): JourneyState {
 }
 
 export function OnboardingJourney({ currentStep, compact = false }: { currentStep?: number; compact?: boolean }) {
-  const [journey] = useState<JourneyState>(getJourneyState);
+  const [journey, setJourney] = useState<JourneyState>({ currentStep: 1, headline: "Start your plan", nextLabel: "Start with your details", href: "/question/register", helper: "A guided setup helps us personalize the plan from the beginning." });
+  useEffect(() => { void getJourneyState().then(setJourney); }, []);
 
   const progressStep = currentStep ?? journey.currentStep;
 

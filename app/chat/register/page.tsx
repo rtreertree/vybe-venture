@@ -12,8 +12,7 @@ import {
     readAccounts,
     readPersonalProfile,
     readRecord,
-    writeAccounts,
-    writePersonalProfile,
+    createAccountWithProfile,
     type AccountRecord,
 } from "@/libs/account-client";
 import type { AccountPlanning, PersonalProfile } from "@/libs/account-model";
@@ -157,7 +156,7 @@ export default function ChatPage() {
     useEffect(() => {
         const fallbackMessage = "Hi there! 👋 Let's get you set up. What's your name?";
 
-        try {
+        const restore = async () => { try {
             const savedChat = window.localStorage.getItem(CHAT_DRAFT_KEY);
             if (savedChat) {
                 try {
@@ -183,10 +182,10 @@ export default function ChatPage() {
             }
 
             const saved = window.localStorage.getItem("questionnaire_register");
-            const accountsResult = readAccounts();
+            const accountsResult = await readAccounts();
             if (!accountsResult.ok) throw new Error(accountsResult.message);
             const previousAccounts = accountsResult.accounts;
-            const profileResult = readPersonalProfile();
+            const profileResult = await readPersonalProfile();
             if (!profileResult.ok) throw new Error(profileResult.message);
             const savedProfile = profileResult.profile;
             if (!saved && previousAccounts.length === 0) {
@@ -262,7 +261,8 @@ export default function ChatPage() {
             hydrate({ name: null, age: null, gender: null, job: null, income: null }, [{ role: "assistant", content: fallbackMessage }]);
         } finally {
             setIsReady(true);
-        }
+        } };
+        void restore();
     }, [fields, hydrate]);
 
     useEffect(() => {
@@ -317,9 +317,9 @@ export default function ChatPage() {
                 ? validTargetValue(account.targetValue)
                 : legacyTargetValueRef.current;
             const personal = personalFromProfile(sanitized.planning);
-            const personalProfileResult = readPersonalProfile();
+            const personalProfileResult = await readPersonalProfile();
             if (!personalProfileResult.ok) throw new Error(personalProfileResult.message);
-            const accountsResult = readAccounts();
+            const accountsResult = await readAccounts();
             if (!accountsResult.ok) throw new Error(accountsResult.message);
             const newAccount: AccountRecord = {
                 schemaVersion: 2,
@@ -334,8 +334,7 @@ export default function ChatPage() {
             };
             const existingAccounts = accountsResult.accounts;
             if (existingAccounts.some((item) => item.id === accountId)) throw new Error("Account already exists");
-            writePersonalProfile(personal);
-            writeAccounts([...existingAccounts, newAccount]);
+            await createAccountWithProfile(personal, newAccount);
             window.localStorage.removeItem(CHAT_DRAFT_KEY);
             window.localStorage.removeItem("questionnaire_draft");
             window.localStorage.removeItem("questionnaire_register");

@@ -1,50 +1,16 @@
 'use client';
 
-import { useSyncExternalStore } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, CalendarDays, CircleDollarSign, Clock3, Goal, MessageCircle, Sparkles } from 'lucide-react';
 import { accountSlug, readAccounts, type AccountRecord } from '@/libs/account-client';
-import { isAccountRecord, isRecord } from '@/libs/account-model';
 
 type AccountPageState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
   | { status: 'not-found' }
   | { status: 'ready'; account: AccountRecord };
-
-function subscribeToAccountChanges(onChange: () => void) {
-  window.addEventListener('storage', onChange);
-  return () => window.removeEventListener('storage', onChange);
-}
-
-function getAccountSnapshot() {
-  return JSON.stringify(readAccounts()) ?? '';
-}
-
-function resolveAccountPage(snapshot: string, routeSlug: string): AccountPageState {
-  if (snapshot === 'loading') return { status: 'loading' };
-
-  let stored: unknown;
-  try {
-    stored = JSON.parse(snapshot);
-  } catch {
-    return { status: 'error', message: 'Saved account data could not be read. Your local data has not been changed.' };
-  }
-
-  if (!isRecord(stored)) {
-    return { status: 'error', message: 'Saved account data has an invalid format. Your local data has not been changed.' };
-  }
-  if (stored.ok === false && typeof stored.message === 'string') {
-    return { status: 'error', message: stored.message };
-  }
-  if (stored.ok !== true || !Array.isArray(stored.accounts) || !stored.accounts.every(isAccountRecord)) {
-    return { status: 'error', message: 'Saved account data has an invalid format. Your local data has not been changed.' };
-  }
-
-  const account = stored.accounts.find((item) => accountSlug(item.accountName, item.id) === routeSlug);
-  return account ? { status: 'ready', account } : { status: 'not-found' };
-}
 
 function formatUsd(value: number | null) {
   return value === null
@@ -62,8 +28,20 @@ function formatDate(value: string) {
 
 export default function AccountOverviewPage() {
   const { accountName: routeSlug } = useParams<{ accountName: string }>();
-  const snapshot = useSyncExternalStore(subscribeToAccountChanges, getAccountSnapshot, () => 'loading');
-  const page = resolveAccountPage(snapshot, routeSlug);
+  const [page, setPage] = useState<AccountPageState>({ status: 'loading' });
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      const result = await readAccounts();
+      if (!active) return;
+      if (!result.ok) return setPage({ status: 'error', message: result.message });
+      const account = result.accounts.find((item) => accountSlug(item.accountName, item.id) === routeSlug);
+      setPage(account ? { status: 'ready', account } : { status: 'not-found' });
+    };
+    void load();
+    window.addEventListener('account-data-changed', load);
+    return () => { active = false; window.removeEventListener('account-data-changed', load); };
+  }, [routeSlug]);
 
   return (
     <div className="min-h-dvh bg-light-surface text-primary">
@@ -86,7 +64,7 @@ export default function AccountOverviewPage() {
             <h1 className="font-display text-2xl font-bold">{page.status === 'not-found' ? 'Account not found' : 'Account details unavailable'}</h1>
             <p role="alert" className="mt-3 text-sm leading-6 text-primary/75">
               {page.status === 'not-found'
-                ? 'This account is not saved in this browser. Return to your dashboard to choose another account.'
+                ? 'This account was not found for your code. Return to your dashboard to choose another account.'
                 : page.message}
             </p>
             <Link href="/dashboard" className="mt-6 inline-flex min-h-11 items-center gap-2 bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-primary/90">
@@ -205,7 +183,7 @@ export default function AccountOverviewPage() {
             </section>
 
             <p className="text-xs leading-5 text-primary/50 lg:col-span-2">
-              This prototype stores account details in this browser on this device. The examples are for education and comparison, not financial advice or recommendations.
+              This prototype saves account details under your account code. The examples are for education and comparison, not financial advice or recommendations.
             </p>
           </main>
         </>
