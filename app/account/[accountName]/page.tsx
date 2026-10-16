@@ -3,8 +3,11 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, CalendarDays, CircleDollarSign, Clock3, Goal, MessageCircle, Sparkles } from 'lucide-react';
+import { ArrowLeft, Briefcase, CalendarDays, CircleDollarSign, Clock3, Goal, MessageCircle, Sparkles, Wallet } from 'lucide-react';
+import { changeColor, formatAsOf, formatPercent, formatUsd as formatMoney } from '@/components/invest/money';
 import { accountSlug, readAccounts, type AccountRecord } from '@/libs/account-client';
+import { fetchPortfolio, fetchProducts, PORTFOLIO_CHANGED_EVENT } from '@/libs/invest-client';
+import type { Portfolio, ProductListItem } from '@/libs/bank/types';
 
 type AccountPageState =
   | { status: 'loading' }
@@ -13,9 +16,7 @@ type AccountPageState =
   | { status: 'ready'; account: AccountRecord };
 
 function formatUsd(value: number | null) {
-  return value === null
-    ? 'Not set'
-    : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
+  return value === null ? 'Not set' : formatMoney(value, 0);
 }
 
 function formatPlanningValue(value: string | null) {
@@ -29,6 +30,11 @@ function formatDate(value: string) {
 export default function AccountOverviewPage() {
   const { accountName: routeSlug } = useParams<{ accountName: string }>();
   const [page, setPage] = useState<AccountPageState>({ status: 'loading' });
+  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [portfolioError, setPortfolioError] = useState('');
+  const [catalog, setCatalog] = useState<ProductListItem[] | null>(null);
+  const [catalogError, setCatalogError] = useState('');
+  const accountId = page.status === 'ready' ? page.account.id : null;
   useEffect(() => {
     let active = true;
     const load = async () => {
@@ -42,6 +48,36 @@ export default function AccountOverviewPage() {
     window.addEventListener('account-data-changed', load);
     return () => { active = false; window.removeEventListener('account-data-changed', load); };
   }, [routeSlug]);
+
+  useEffect(() => {
+    if (!accountId) return;
+    let active = true;
+    const load = () => {
+      void fetchPortfolio(accountId).then((result) => {
+        if (!active) return;
+        setPortfolio(result.ok ? result.data : null);
+        setPortfolioError(result.ok ? '' : result.message);
+      });
+    };
+    load();
+    window.addEventListener(PORTFOLIO_CHANGED_EVENT, load);
+    return () => { active = false; window.removeEventListener(PORTFOLIO_CHANGED_EVENT, load); };
+  }, [accountId]);
+
+  const hasShortlist = page.status === 'ready' && page.account.selectedProducts.length > 0;
+  useEffect(() => {
+    if (!hasShortlist) return;
+    let active = true;
+    void fetchProducts().then((result) => {
+      if (!active) return;
+      setCatalog(result.ok ? result.data.products : null);
+      setCatalogError(result.ok ? '' : result.message);
+    });
+    return () => { active = false; };
+  }, [hasShortlist]);
+
+  const targetAmount = page.status === 'ready' ? page.account.planning.targetAmount?.amount ?? null : null;
+  const targetProgress = portfolio && targetAmount ? Math.min(100, (portfolio.totals.holdingsValue / targetAmount) * 100) : null;
 
   return (
     <div className="min-h-dvh bg-light-surface text-primary">
@@ -94,6 +130,12 @@ export default function AccountOverviewPage() {
                       <Sparkles className="h-4 w-4" aria-hidden /> Explore options
                     </Link>
                     <Link
+                      href={`/account/${encodeURIComponent(accountSlug(page.account.accountName, page.account.id))}/portfolio`}
+                      className="inline-flex min-h-11 items-center gap-2 border border-white/30 px-4 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+                    >
+                      <Briefcase className="h-4 w-4" aria-hidden /> Portfolio
+                    </Link>
+                    <Link
                       href={`/consult?account=${encodeURIComponent(page.account.id)}`}
                       className="inline-flex min-h-11 items-center gap-2 border border-white/30 px-4 text-sm font-semibold text-white transition-colors hover:bg-white/10"
                     >
@@ -113,6 +155,21 @@ export default function AccountOverviewPage() {
                   <div className="mt-4 flex items-center justify-between gap-4">
                     <span className="inline-flex items-center gap-2 text-sm text-white/70"><Clock3 className="h-4 w-4" aria-hidden /> Time horizon</span>
                     <span className="text-sm font-semibold">{page.account.timeframeYears ? `${page.account.timeframeYears} ${page.account.timeframeYears === 1 ? 'year' : 'years'}` : 'Not set'}</span>
+                  </div>
+                  <div className="mt-4 border-t border-white/15 pt-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="inline-flex items-center gap-2 text-sm text-white/70"><Wallet className="h-4 w-4" aria-hidden /> Holdings value</span>
+                      <span className="font-display text-xl font-semibold">{portfolio ? formatMoney(portfolio.totals.holdingsValue) : portfolioError ? 'Unavailable' : '…'}</span>
+                    </div>
+                    {portfolioError && <p role="alert" className="mt-2 text-xs text-white/70">{portfolioError}</p>}
+                    {targetProgress !== null && (
+                      <div className="mt-3">
+                        <div className="h-2 bg-white/15" role="progressbar" aria-label="Progress toward target" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(targetProgress)}>
+                          <div className="h-full bg-growth" style={{ width: `${targetProgress}%` }} />
+                        </div>
+                        <p className="mt-1.5 text-xs text-white/60">{targetProgress.toFixed(1)}% of your target</p>
+                      </div>
+                    )}
                   </div>
                 </aside>
               </div>
@@ -164,26 +221,43 @@ export default function AccountOverviewPage() {
                 <p className="text-sm text-primary/60">{page.account.selectedProducts.length} of 3 options saved</p>
               </div>
               {page.account.selectedProducts.length > 0 ? (
+                <>
                 <ul className="mt-5 grid gap-3 sm:grid-cols-2">
-                  {page.account.selectedProducts.map((product) => (
-                    <li key={product.id} className="flex items-center gap-4 border border-primary/10 bg-light-surface/60 p-4">
-                      <span className="grid h-11 w-11 shrink-0 place-items-center bg-primary font-mono text-xs font-semibold text-accent">{product.symbol}</span>
-                      <span className="min-w-0">
-                        <span className="block font-display text-sm font-semibold">{product.name}</span>
-                        <span className="mt-1 block text-xs text-secondary">{product.symbol}</span>
-                      </span>
-                    </li>
-                  ))}
+                  {page.account.selectedProducts.map((product) => {
+                    const live = catalog?.find((item) => item.symbol === product.symbol);
+                    return (
+                      <li key={product.symbol}>
+                        <Link
+                          href={`/products/${encodeURIComponent(product.symbol)}?account=${encodeURIComponent(page.account.id)}`}
+                          className="flex items-center gap-4 border border-primary/10 bg-light-surface/60 p-4 transition-colors hover:border-primary/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                        >
+                          <span className="grid h-11 min-w-11 shrink-0 place-items-center bg-primary px-1 font-mono text-xs font-semibold text-accent">{product.symbol}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block font-display text-sm font-semibold">{product.name}</span>
+                            <span className="mt-1 block text-xs text-secondary">{live ? `As of ${formatAsOf(live.asOf)}` : catalogError ? 'Price unavailable' : 'Loading price…'}</span>
+                          </span>
+                          {live && (
+                            <span className="text-right">
+                              <span className="block font-display text-sm font-semibold">{formatMoney(live.currentPrice)}</span>
+                              <span className={`block text-xs font-semibold ${changeColor(live.dayChangePercent)}`}>{formatPercent(live.dayChangePercent)}</span>
+                            </span>
+                          )}
+                        </Link>
+                      </li>
+                    );
+                  })}
                 </ul>
+                {catalogError && <p role="alert" className="mt-3 text-sm text-risk">{catalogError}</p>}
+                </>
               ) : (
                 <p className="mt-5 border border-dashed border-primary/20 bg-light-surface/60 p-5 text-sm leading-6 text-primary/65">
-                  No options saved yet. Explore illustrative choices to compare what may fit your plan.
+                  No options saved yet. Explore the catalog to compare what may fit your plan.
                 </p>
               )}
             </section>
 
             <p className="text-xs leading-5 text-primary/50 lg:col-span-2">
-              This prototype saves account details under your account code. The examples are for education and comparison, not financial advice or recommendations.
+              This prototype saves account details under your account code. Prices are simulated by a prototype bank for education and comparison, not financial advice or recommendations.
             </p>
           </main>
         </>

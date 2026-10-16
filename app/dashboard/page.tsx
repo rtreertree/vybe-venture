@@ -16,6 +16,9 @@ import {
   dashboardClass,
 } from '../../components/dashboard-components';
 import { accountSlug, readAccounts, type AccountRecord } from '../../libs/account-client';
+import { changeColor, formatPercent, formatUsd } from '../../components/invest/money';
+import { fetchPortfolio, PORTFOLIO_CHANGED_EVENT } from '../../libs/invest-client';
+import type { Portfolio } from '../../libs/bank/types';
 import { MOVER_TABS, REGIONS, SECTORS, type DashboardRegion, type TimeRange } from '../../libs/dashboard-data';
 
 const NEWS_DISPLAY_COUNT = 4;
@@ -141,10 +144,6 @@ function formatReturn(value: number) {
   return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
 }
 
-function formatUsd(value: number) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
-}
-
 function formatMaybeReturn(value: number | null) {
   return value === null ? 'N/A' : formatReturn(value);
 }
@@ -235,6 +234,9 @@ export default function Page() {
   const [portfolios, setPortfolios] = useState<AccountRecord[]>([]);
   const [portfolioError, setPortfolioError] = useState('');
   const [portfoliosLoaded, setPortfoliosLoaded] = useState(false);
+  const [bankTotal, setBankTotal] = useState<Portfolio | null>(null);
+  const [holdingsByAccount, setHoldingsByAccount] = useState<Record<string, number>>({});
+  const [bankError, setBankError] = useState('');
   const [economicBrief, setEconomicBrief] = useState<EconomicBriefState>({
     data: null,
     loading: true,
@@ -310,6 +312,26 @@ export default function Page() {
     window.addEventListener('account-data-changed', refresh);
     return () => window.removeEventListener('account-data-changed', refresh);
   }, []);
+
+  const accountIds = portfolios.map((account) => account.id).join(',');
+  useEffect(() => {
+    if (!portfoliosLoaded) return;
+    let active = true;
+    const loadBank = async () => {
+      const ids = accountIds ? accountIds.split(',') : [];
+      const [total, ...perAccount] = await Promise.all([fetchPortfolio(), ...ids.map((id) => fetchPortfolio(id))]);
+      if (!active) return;
+      setBankTotal(total.ok ? total.data : null);
+      setBankError(total.ok ? '' : total.message);
+      const values: Record<string, number> = {};
+      perAccount.forEach((result, index) => { if (result.ok) values[ids[index]] = result.data.totals.holdingsValue; });
+      setHoldingsByAccount(values);
+    };
+    void loadBank();
+    const refresh = () => { void loadBank(); };
+    window.addEventListener(PORTFOLIO_CHANGED_EVENT, refresh);
+    return () => { active = false; window.removeEventListener(PORTFOLIO_CHANGED_EVENT, refresh); };
+  }, [accountIds, portfoliosLoaded]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -515,6 +537,19 @@ export default function Page() {
                 <Plus size={16} aria-hidden="true" /> <span>{portfolios.length ? "Add account" : "Start setup"}</span>
               </Link>
             </div>
+            {portfolios.length > 0 && (
+              <div className={dashboardClass('accounts-total')} aria-label="Total across your accounts">
+                {bankTotal ? (
+                  <>
+                    <span><small>Total value</small><strong>{formatUsd(bankTotal.totals.totalValue)}</strong></span>
+                    <span><small>Cash</small><strong>{formatUsd(bankTotal.cashBalance)}</strong></span>
+                    <span><small>Unrealised P/L</small><strong className={changeColor(bankTotal.totals.unrealizedPL)}>{bankTotal.totals.unrealizedPL > 0 ? '+' : ''}{formatUsd(bankTotal.totals.unrealizedPL)} ({formatPercent(bankTotal.totals.unrealizedPLPercent)})</strong></span>
+                  </>
+                ) : (
+                  <p role={bankError ? 'alert' : 'status'}>{bankError || 'Loading your investment totals…'}</p>
+                )}
+              </div>
+            )}
             {portfolios.length > 0 ? (
               <div className={dashboardClass('account-list')}>
                 {portfolios.map((account) => {
@@ -530,6 +565,9 @@ export default function Page() {
                         <span className={dashboardClass('account-card__goal')}>{account.goal}</span>
                       </span>
                       <span className={dashboardClass('account-card__end')}>
+                        {holdingsByAccount[account.id] !== undefined
+                          ? <span className={dashboardClass('account-card__value')}>{formatUsd(holdingsByAccount[account.id])} invested</span>
+                          : null}
                         {account.planning.targetAmount
                           ? <span className={dashboardClass('account-card__target')}>{formatUsd(account.planning.targetAmount.amount)}</span>
                           : null}

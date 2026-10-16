@@ -3,6 +3,7 @@ import prisma from "@/libs/prisma";
 import { USER_TOKEN_PATTERN } from "@/libs/user-token";
 import { requestedToken, sameOrigin } from "@/libs/user-data-server";
 import { readJsonBody } from "@/libs/request-json";
+import { deleteAccount } from "@/libs/bank-client";
 
 const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
@@ -44,6 +45,8 @@ export async function DELETE(request: Request) {
   if (!sameOrigin(request)) return new Response("Invalid origin", { status: 403 });
   const token = requestedToken(request);
   if (!token) return new Response("Invalid account code", { status: 400 });
+  const bank = await deleteAccount(token);
+  if (!bank.ok) return new Response("Bank data could not be removed; nothing was cleared", { status: 502 });
   const deleted = await prisma.appUser.deleteMany({ where: { token } });
   return deleted.count ? new Response(null, { status: 204 }) : new Response("Account code not found", { status: 404 });
 }

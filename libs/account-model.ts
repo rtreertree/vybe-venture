@@ -23,34 +23,14 @@ export type AccountPlanning = {
   excludedIndustries: string | null;
 };
 
-export type AssetExample = {
-  id: string;
-  name: string;
+// Shortlist entry: a symbol from the bank catalog.
+export type SelectedProduct = {
   symbol: string;
-  category: string;
-  risk: string;
-  time_horizon: string;
-  liquidity: string;
-  cost: string;
-  why_it_may_fit: string;
-  what_to_watch: string;
-  summary: string;
-};
-
-export type AssetExamples = {
-  id: string;
-  createdAt: string;
-  headline: string;
-  summary: string;
-  assets: AssetExample[];
-};
-
-export type SelectedProduct = Pick<AssetExample, "id" | "name" | "symbol"> & {
-  examplesId: string;
+  name: string;
 };
 
 export type AccountRecord = {
-  schemaVersion: 2;
+  schemaVersion: 3;
   id: string;
   accountName: string;
   goal: string;
@@ -58,22 +38,15 @@ export type AccountRecord = {
   planning: AccountPlanning;
   createdAt: string;
   selectedProducts: SelectedProduct[];
-  assetExamples: AssetExamples | null;
 };
 
 export type AccountPlanDraft = Pick<AccountRecord, "accountName" | "goal" | "timeframeYears" | "planning">;
 
-export type LegacyAccountRecord = {
-  schemaVersion: 1;
-  id: string;
-  accountName: string;
-  goal: string;
-  timeframe: string | null;
-  planning: AccountPlanning;
-  personal: PersonalProfile;
-  createdAt: string;
-  selectedProducts: SelectedProduct[];
-  assetExamples: AssetExamples | null;
+// Schema 2 stored AI-generated fictional products. Only the shell is checked: both fields are dropped on upgrade.
+export type LegacyV2AccountRecord = Omit<AccountRecord, "schemaVersion" | "selectedProducts"> & {
+  schemaVersion: 2;
+  selectedProducts: unknown[];
+  assetExamples: unknown;
 };
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -126,77 +99,21 @@ export function isPersonalProfile(value: unknown): value is PersonalProfile {
     && (value.regularExpenses === null || isBoundedString(value.regularExpenses, 1_000));
 }
 
-function isLegacyPersonalProfile(value: unknown): value is PersonalProfile {
-  return isRecord(value)
-    && (value.name === null || isBoundedString(value.name, 300))
-    && (value.age === null || (Number.isInteger(value.age) && Number(value.age) >= 1 && Number(value.age) <= 120))
-    && (value.gender === null || isBoundedString(value.gender, 300))
-    && (value.investmentExperience === null || isBoundedString(value.investmentExperience, 300))
-    && (value.job === null || isBoundedString(value.job, 300))
-    && (value.income === null || isBoundedString(value.income, 300))
-    && (value.incomeSources === null || isBoundedString(value.incomeSources, 1_000))
-    && (value.regularExpenses === null || isBoundedString(value.regularExpenses, 1_000));
-}
-
-function isAssetExample(value: unknown): value is AssetExample {
-  return isRecord(value)
-    && isBoundedString(value.id, 64)
-    && isBoundedString(value.name, 150)
-    && isBoundedString(value.symbol, 32)
-    && isBoundedString(value.category, 100)
-    && isBoundedString(value.risk, 100)
-    && isBoundedString(value.time_horizon, 100)
-    && isBoundedString(value.liquidity, 100)
-    && isBoundedString(value.cost, 100)
-    && isBoundedString(value.why_it_may_fit, 500)
-    && isBoundedString(value.what_to_watch, 500)
-    && isBoundedString(value.summary, 500);
-}
-
-function isAssetExamplesContent(value: unknown): value is Omit<AssetExamples, "id" | "createdAt"> {
-  return isRecord(value)
-    && isBoundedString(value.headline, 300)
-    && isBoundedString(value.summary, 1_000)
-    && Array.isArray(value.assets)
-    && value.assets.length === 7
-    && value.assets.every(isAssetExample)
-    && new Set(value.assets.map((asset) => asset.id)).size === value.assets.length;
-}
-
-export function isAssetExamples(value: unknown): value is AssetExamples {
-  return isRecord(value)
-    && isBoundedString(value.id, 256)
-    && value.id.length > 0
-    && typeof value.createdAt === "string"
-    && Number.isFinite(Date.parse(value.createdAt))
-    && isAssetExamplesContent(value);
-}
-
-function isLegacyAssetExamples(value: unknown): value is Omit<AssetExamples, "id" | "createdAt"> {
-  return isAssetExamplesContent(value);
-}
+const PRODUCT_SYMBOL_PATTERN = /^[A-Z0-9.]{1,12}$/;
 
 function isSelectedProduct(value: unknown): value is SelectedProduct {
   return isRecord(value)
-    && isBoundedString(value.id, 64)
+    && typeof value.symbol === "string"
+    && PRODUCT_SYMBOL_PATTERN.test(value.symbol)
     && isBoundedString(value.name, 150)
-    && isBoundedString(value.symbol, 32)
-    && isBoundedString(value.examplesId, 256)
-    && value.examplesId.length > 0;
+    && value.name.length > 0;
 }
 
-function isLegacySelectedProduct(value: unknown): value is Omit<SelectedProduct, "examplesId"> {
-  return isRecord(value)
-    && isBoundedString(value.id, 64)
-    && isBoundedString(value.name, 150)
-    && isBoundedString(value.symbol, 32);
+function isValidTimeframeYears(value: unknown) {
+  return value === null || (Number.isInteger(value) && Number(value) >= 1 && Number(value) <= 50);
 }
 
-function isAccountBase(
-  value: Record<string, unknown>,
-  assetExamplesValidator: (value: unknown) => boolean,
-  selectedProductValidator: (value: unknown) => boolean,
-) {
+function isAccountBase(value: Record<string, unknown>) {
   return isBoundedString(value.id, 128)
     && value.id.length > 0
     && isBoundedString(value.accountName, 100)
@@ -206,40 +123,31 @@ function isAccountBase(
     && isAccountPlanning(value.planning)
     && typeof value.createdAt === "string"
     && Number.isFinite(Date.parse(value.createdAt))
+    && isValidTimeframeYears(value.timeframeYears)
     && Array.isArray(value.selectedProducts)
-    && value.selectedProducts.length <= 3
-    && value.selectedProducts.every(selectedProductValidator)
-    && (value.assetExamples === null || assetExamplesValidator(value.assetExamples));
-}
-
-function hasValidProductSelections(value: Record<string, unknown>) {
-  if (!Array.isArray(value.selectedProducts)) return false;
-  if (value.assetExamples === null) return value.selectedProducts.length === 0;
-  const examples = value.assetExamples;
-  if (!isRecord(examples)) return false;
-  const assets = examples.assets;
-  if (!Array.isArray(assets)) return false;
-
-  return value.selectedProducts.every((product) => {
-    if (!isSelectedProduct(product) || product.examplesId !== examples.id) return false;
-    const asset = assets.find((candidate) => isRecord(candidate) && candidate.id === product.id);
-    return isRecord(asset) && asset.name === product.name && asset.symbol === product.symbol;
-  });
+    && value.selectedProducts.length <= 3;
 }
 
 export function isAccountRecord(value: unknown): value is AccountRecord {
   return isRecord(value)
-    && value.schemaVersion === 2
-    && isAccountBase(value, isAssetExamples, isSelectedProduct)
-    && (value.timeframeYears === null
-      || (Number.isInteger(value.timeframeYears) && Number(value.timeframeYears) >= 1 && Number(value.timeframeYears) <= 50))
-    && hasValidProductSelections(value);
+    && value.schemaVersion === 3
+    && isAccountBase(value)
+    && !("assetExamples" in value)
+    && (value.selectedProducts as unknown[]).every(isSelectedProduct)
+    && new Set((value.selectedProducts as SelectedProduct[]).map((product) => product.symbol)).size === (value.selectedProducts as unknown[]).length;
 }
 
-export function isLegacyAccountRecord(value: unknown): value is LegacyAccountRecord {
+export function isLegacyV2AccountRecord(value: unknown): value is LegacyV2AccountRecord {
   return isRecord(value)
-    && value.schemaVersion === 1
-    && isAccountBase(value, isLegacyAssetExamples, isLegacySelectedProduct)
-    && (value.timeframe === null || isBoundedString(value.timeframe, 100))
-    && isLegacyPersonalProfile(value.personal);
+    && value.schemaVersion === 2
+    && isAccountBase(value)
+    && (value.selectedProducts as unknown[]).every(isRecord)
+    && "assetExamples" in value;
+}
+
+// The old selections were AI-generated fictional symbols that do not exist in the bank, so they are dropped.
+export function upgradeAccountRecord(record: LegacyV2AccountRecord): AccountRecord {
+  const { schemaVersion, assetExamples, selectedProducts, ...rest } = record;
+  void schemaVersion; void assetExamples; void selectedProducts;
+  return { ...rest, schemaVersion: 3, selectedProducts: [] };
 }

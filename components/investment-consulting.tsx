@@ -13,8 +13,9 @@ import {
   UserRound,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConsultingChat } from "@/components/consulting-chat";
+import { fetchPortfolio } from "@/libs/invest-client";
 import {
   accountSlug,
   readAccounts,
@@ -136,6 +137,8 @@ export function InvestmentConsulting() {
   const [detailsError, setDetailsError] = useState("");
   const [isSavingDetails, setIsSavingDetails] = useState(false);
   const [balance, setBalance] = useState("10000");
+  const [balancePrefilled, setBalancePrefilled] = useState(false);
+  const balanceEdited = useRef(false);
   const [withdrawal, setWithdrawal] = useState("2000");
   const [years, setYears] = useState("5");
   const [scenarioInput, setScenarioInput] = useState<WithdrawalScenarioInput | null>(null);
@@ -153,6 +156,8 @@ export function InvestmentConsulting() {
     setDetailsMessage("");
     setDetailsError("");
     setBalance("10000");
+    setBalancePrefilled(false);
+    balanceEdited.current = false;
     setWithdrawal("2000");
     setYears(initialYears(nextAccount));
     setScenarioInput(null);
@@ -189,6 +194,20 @@ export function InvestmentConsulting() {
     }, 0);
     return () => window.clearTimeout(timeout);
   }, [resetForAccount]);
+
+  useEffect(() => {
+    if (!accountId) return;
+    let active = true;
+    void fetchPortfolio(accountId).then((result) => {
+      if (!active || !result.ok || balanceEdited.current) return;
+      const holdingsValue = Math.round(result.data.totals.holdingsValue);
+      if (holdingsValue > 0) {
+        setBalance(String(holdingsValue));
+        setBalancePrefilled(true);
+      }
+    });
+    return () => { active = false; };
+  }, [accountId]);
 
   useEffect(() => {
     if (!isReady) return;
@@ -516,7 +535,7 @@ export function InvestmentConsulting() {
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-ink/70">Compare leaving the full balance invested with withdrawing an amount today and leaving the rest invested for the selected period.</p>
 
                 <div className="mt-7 grid min-w-0 gap-5 sm:grid-cols-2">
-                  <Field label="Current account balance (USD)" id="scenario-balance" type="number" min="0" max="100000000" value={balance} onChange={setBalance} />
+                  <Field label="Current account balance (USD)" id="scenario-balance" type="number" min="0" max="100000000" value={balance} onChange={(value) => { balanceEdited.current = true; setBalancePrefilled(false); setBalance(value); }} hint={balancePrefilled ? "Prefilled from this account's current holdings value. You can change it." : undefined} />
                   <Field label="Amount to withdraw now (USD)" id="scenario-withdrawal" type="number" min="0" max="100000000" value={withdrawal} onChange={setWithdrawal} />
                   <Field label="Years until your goal" id="scenario-years" type="number" min="1" max="50" value={years} onChange={setYears} />
                 </div>
@@ -619,7 +638,7 @@ export function InvestmentConsulting() {
   );
 }
 
-function Field({ label, id, value, onChange, placeholder, type = "text", min, max, maxLength }: {
+function Field({ label, id, value, onChange, placeholder, type = "text", min, max, maxLength, hint }: {
   label: string;
   id: string;
   value: string;
@@ -629,6 +648,7 @@ function Field({ label, id, value, onChange, placeholder, type = "text", min, ma
   min?: string;
   max?: string;
   maxLength?: number;
+  hint?: string;
 }) {
   return (
     <div>
@@ -644,7 +664,9 @@ function Field({ label, id, value, onChange, placeholder, type = "text", min, ma
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         className="mt-2 min-h-12 w-full border border-primary/20 bg-light-surface px-4 text-sm text-primary outline-none placeholder:text-secondary/55 focus:border-primary focus:ring-2 focus:ring-accent/40"
+        aria-describedby={hint ? `${id}-hint` : undefined}
       />
+      {hint && <p id={`${id}-hint`} className="mt-1.5 text-xs leading-5 text-primary/60">{hint}</p>}
     </div>
   );
 }

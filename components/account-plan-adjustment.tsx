@@ -257,8 +257,6 @@ export function AccountPlanAdjustment({
         return {
           ...current,
           ...cleaned,
-          assetExamples: null,
-          selectedProducts: [],
         };
       });
       onSaved();

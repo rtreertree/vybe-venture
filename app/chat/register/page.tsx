@@ -322,7 +322,7 @@ export default function ChatPage() {
             const accountsResult = await readAccounts();
             if (!accountsResult.ok) throw new Error(accountsResult.message);
             const newAccount: AccountRecord = {
-                schemaVersion: 2,
+                schemaVersion: 3,
                 id: accountId,
                 accountName,
                 goal: accountGoal,
@@ -330,7 +330,6 @@ export default function ChatPage() {
                 planning: planningFromProfile(sanitized.planning, targetValue),
                 createdAt: new Date().toISOString(),
                 selectedProducts: [],
-                assetExamples: null,
             };
             const existingAccounts = accountsResult.accounts;
             if (existingAccounts.some((item) => item.id === accountId)) throw new Error("Account already exists");

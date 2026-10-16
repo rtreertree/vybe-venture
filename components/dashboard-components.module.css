@@ -106,6 +106,12 @@
 .dashboard .account-card__goal { overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
 .dashboard .account-card__end { display: flex; align-items: center; gap: 10px; flex: none; color: var(--muted); }
 .dashboard .account-card__target { color: var(--ink); font-size: 12px; font-weight: 600; }
+.dashboard .account-card__value { color: var(--muted); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.dashboard .accounts-total { display: flex; flex-wrap: wrap; gap: 8px 28px; margin-bottom: 14px; padding: 12px 14px; border: 1px solid var(--line-soft); background: color-mix(in srgb, var(--ground) 38%, white); }
+.dashboard .accounts-total > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dashboard .accounts-total small { color: var(--muted); font-size: 11px; }
+.dashboard .accounts-total strong { font-family: var(--font-display); font-size: 15px; font-weight: 600; }
+.dashboard .accounts-total p { margin: 0; color: var(--muted); font-size: 12px; }
 .dashboard .accounts-empty { display: flex; align-items: center; gap: 14px; padding: 18px; border: 1px dashed var(--line); background: color-mix(in srgb, var(--ground) 38%, white); }
 .dashboard .accounts-empty__icon { width: 42px; height: 42px; flex: none; display: grid; place-items: center; background: var(--tint-info); color: var(--ink); }
 .dashboard .accounts-empty h3 { margin: 0; font-family: var(--font-display); font-size: 14px; font-weight: 600; }

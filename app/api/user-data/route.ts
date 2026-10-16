@@ -1,8 +1,9 @@
 import type { Prisma } from "@/generated/prisma/client";
 import prisma from "@/libs/prisma";
-import { isAccountRecord, isPersonalProfile, isRecord } from "@/libs/account-model";
+import { isAccountRecord, isLegacyV2AccountRecord, isPersonalProfile, isRecord, upgradeAccountRecord, type AccountRecord } from "@/libs/account-model";
 import { existingUser, requestedToken, sameOrigin } from "@/libs/user-data-server";
 import { readJsonBody } from "@/libs/request-json";
+import { deleteAccount } from "@/libs/bank-client";
 
 const asJson = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 
@@ -11,8 +12,19 @@ export async function GET(request: Request) {
   if (!user) return new Response("Account code not found", { status: 401 });
   const records = await prisma.appAccount.findMany({ where: { userToken: user.token }, orderBy: { createdAt: "asc" } });
   if (user.profile !== null && !isPersonalProfile(user.profile)) return new Response("Saved profile is invalid", { status: 500 });
-  if (!records.every((item) => isAccountRecord(item.record))) return new Response("Saved account is invalid", { status: 500 });
-  return Response.json({ profile: user.profile, accounts: records.map((item) => item.record) });
+  const accounts: AccountRecord[] = [];
+  for (const item of records) {
+    if (isAccountRecord(item.record)) {
+      accounts.push(item.record);
+    } else if (isLegacyV2AccountRecord(item.record)) {
+      const upgraded = upgradeAccountRecord(item.record);
+      await prisma.appAccount.updateMany({ where: { id: item.id, userToken: user.token }, data: { record: asJson(upgraded) } });
+      accounts.push(upgraded);
+    } else {
+      return new Response("Saved account is invalid", { status: 500 });
+    }
+  }
+  return Response.json({ profile: user.profile, accounts });
 }
 
 export async function POST(request: Request) {
@@ -55,6 +67,8 @@ export async function DELETE(request: Request) {
   if (!sameOrigin(request)) return new Response("Invalid origin", { status: 403 });
   const token = requestedToken(request);
   if (!token || !await existingUser(request)) return new Response("Account code not found", { status: 401 });
+  const bank = await deleteAccount(token);
+  if (!bank.ok) return new Response("Bank data could not be removed; nothing was cleared", { status: 502 });
   await prisma.$transaction([
     prisma.appConversation.deleteMany({ where: { userToken: token } }),
     prisma.appAccount.deleteMany({ where: { userToken: token } }),
