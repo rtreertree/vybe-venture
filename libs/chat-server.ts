@@ -24,7 +24,7 @@ ${list}
 
 Extract only values the user explicitly states in their last message (corrections count). Use null for anything not stated. Never guess.
 Keep each value short, in the user's own words. If the user explicitly declines to share a field, store "prefer not to say" for it.
-For target_value, return a JSON number (not a string) when the user states a USD target amount between 0 and 100,000,000. Do not infer an amount from a vague goal.
+For target_value, return a JSON number (not a string) when the user states a USD target amount between 0 and 100,000,000. If they explicitly have no target yet or are unsure, return "unsure". If they decline to share it, return "prefer not to say". Do not infer an amount from a vague goal.
 
 turn_type:
 - "answer": the message provides, or tries to provide, any requested info (even if it also contains a tangent)
@@ -41,8 +41,15 @@ async function analyze(
     const keys = Object.keys(fields);
 
     const properties: Record<string, unknown> = Object.fromEntries(
-        keys.map((k) => [k, {
-            type: k === "target_value" ? ["number", "null"] : ["string", "null"],
+        keys.map((k) => [k, k === "target_value" ? {
+            anyOf: [
+                { type: "number", minimum: 0, maximum: 100_000_000 },
+                { type: "string", enum: ["unsure", "prefer not to say"] },
+                { type: "null" },
+            ],
+            description: fields[k],
+        } : {
+            type: ["string", "null"],
             description: fields[k],
         }])
     );
@@ -103,7 +110,7 @@ Warmly thank the user (use their name only if one of the values is clearly their
     }
 
     const next = missing[0];
-    const parts = [base, `Still missing: ${missing.map(describe).join("; ")}. Next, ask about: ${describe(next)}. Do not mention the full list of remaining questions.`];
+    const parts = [base, `Still missing: ${missing.map(describe).join("; ")}. Next, ask about: ${describe(next)}. Do not mention the full list of remaining questions.${next === "target_value" ? " Make clear that it is fine not to have a target amount yet." : ""}`];
 
     if (captured.length) {
         parts.push(

@@ -228,7 +228,7 @@ export default function ChatPage() {
                 job: "What do you do for work?",
                 income_sources: "What are your sources of income?",
                 main_expenses: "What regular expenses or financial commitments should we keep in mind?",
-                target_value: "What amount in USD are you hoping this account will reach?",
+                target_value: "What amount in USD are you hoping this account will reach? It's fine if you haven't set a target yet.",
                 timeframe: "About how many years do you expect to keep this money in the account before using it? A rough estimate is fine.",
                 liquidity_needs: "When might you need access to this money?",
                 loss_reaction: "How might you feel if this account temporarily lost value?",

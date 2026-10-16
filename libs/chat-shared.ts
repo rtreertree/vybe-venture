@@ -41,7 +41,14 @@ export const cleanStr = (v: unknown) =>
 
 const cleanProfileValue = (key: string, value: unknown): string | number | null => {
     if (key === "target_value") {
-        return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100_000_000 ? value : null;
+        if (typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100_000_000) {
+            return value;
+        }
+        if (typeof value === "string") {
+            const answer = value.trim().toLowerCase();
+            if (answer === "unsure" || answer === "prefer not to say") return answer;
+        }
+        return null;
     }
 
     if (key === "age" && (typeof value === "string" || typeof value === "number")) {
