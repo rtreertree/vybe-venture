@@ -4,6 +4,7 @@ import { USER_TOKEN_PATTERN } from "@/libs/user-token";
 import { requestedToken, sameOrigin } from "@/libs/user-data-server";
 import { readJsonBody } from "@/libs/request-json";
 import { deleteAccount } from "@/libs/bank-client";
+import { pruneEmptyUsers } from "@/libs/prune-empty-users";
 
 const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
@@ -28,6 +29,8 @@ export async function POST(request: Request) {
     return user ? Response.json({ token }) : new Response("That account code was not found", { status: 404 });
   }
   if (body.action !== "generate") return new Response("Invalid action", { status: 400 });
+  // Opportunistic cleanup of abandoned codes; must never block generating a new one.
+  await pruneEmptyUsers().catch(() => undefined);
   for (let attempt = 0; attempt < 12; attempt += 1) {
     const token = Array.from({ length: 5 }, () => alphabet[randomInt(alphabet.length)]).join("");
     try {

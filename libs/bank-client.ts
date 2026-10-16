@@ -30,7 +30,17 @@ type CallOptions = {
 };
 
 function bankBaseUrl() {
-  return (process.env.BANK_API_URL ?? "http://localhost:3000/api/bank").replace(/\/+$/, "");
+  // Accept the base with or without a trailing /v1; call() adds the version itself.
+  return (process.env.BANK_API_URL || "http://localhost:3001").trim().replace(/\/+$/, "").replace(/\/v1$/, "");
+}
+
+function parsePayload(text: string): unknown {
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
 }
 
 function isErrorBody(value: unknown): value is BankErrorBody {
@@ -57,7 +67,11 @@ async function call<T>(path: string, options: CallOptions = {}): Promise<BankRes
       signal: AbortSignal.timeout(10_000),
     });
     const text = await response.text();
-    const payload: unknown = text ? JSON.parse(text) : null;
+    const payload = parsePayload(text);
+    if (payload === undefined) {
+      console.error(`Bank returned non-JSON ${response.status} for ${url.pathname}; check BANK_API_URL`);
+      return { ok: false, status: 502, error: { error: { code: "BANK_ERROR", message: "The bank returned an unexpected response." } } };
+    }
     if (response.ok) return { ok: true, status: response.status, data: payload as T };
     if (isErrorBody(payload)) return { ok: false, status: response.status, error: payload };
     return { ok: false, status: response.status, error: { error: { code: "BANK_ERROR", message: "The bank returned an unexpected response." } } };

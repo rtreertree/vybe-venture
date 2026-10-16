@@ -14,7 +14,6 @@ VYBE VENTURE is a prototype personal-finance guidance app that helps users under
 ```bash
 npm install
 npm run db:deploy
-npm run db:seed
 npm run dev
 ```
 
@@ -29,7 +28,7 @@ Then open http://localhost:3000 in your browser.
 - `/chat/register` — guided planning conversation
 - `/consult` — review and iterate on the plan
 - `/dashboard` — account overview, market data, and a live AI global economic brief
-- `/account/[accountName]/create` — explore the bank's products, filter, shortlist and compare
+- `/account/[accountName]/create` — see the options an AI picks from the bank for your profile and plan, shortlist and compare
 - `/account/[accountName]/portfolio` — holdings, profit and loss, history chart and orders for one planning account
 - `/products/[symbol]` — product details, price chart, key facts, and buy or sell with a confirmation step
 - `/welcome` — completion state and reset flow
@@ -54,12 +53,11 @@ Saved account records retain a versioned JSON shape in PostgreSQL (schemaVersion
 
 Open `/consult` to select a saved account and review or update its goal, timeframe, target, and planning preferences. The News topic currently uses fictional demo briefs; it is not a live feed. What If compares an early withdrawal with leaving a hypothetical starting balance invested, using fixed -5%, 2%, 5%, and 8% annual return scenarios compounded monthly. The starting balance is an editable example, not a saved account balance. These scenarios are not probabilities; the comparison is illustrative only and excludes fees, taxes, inflation, and additional contributions. Account details and topic conversation history are stored in PostgreSQL, while consulting chat context and messages are sent to the configured AI service when you send a message.
 
-## Mock bank
+## Bank
 
-The product catalog, prices, cash, holdings, and orders come from a mock bank that is served inside this app at `/api/bank/v1` (contract: [`docs/bank-api-spec.md`](docs/bank-api-spec.md)). It has its own `Bank*` tables and knows nothing about the app's users. The app reaches it only from the server, through `/api/invest/*`, which checks the user code and that any `accountRef` belongs to that user before calling the bank with `X-User-Id`. The browser never calls the bank, and no AI route can place orders: an order is sent only when the user presses Confirm in the order dialog.
+The product catalog, prices, cash, holdings, and orders live in a separate bank service with its own database (the `vybe-venture-bank` project; contract: [`docs/bank-api-spec.md`](docs/bank-api-spec.md)). This app's database holds only `AppUser`, `AppAccount` and `AppConversation`, and the bank knows nothing about them. The app reaches the bank only from the server, through `/api/invest/*`, which checks the user code and that any `accountRef` belongs to that user before calling the bank with `X-User-Id`. The browser never calls the bank, and no AI route can place orders: an order is sent only when the user presses Confirm in the order dialog.
 
-- `BANK_API_URL` sets where the server finds the bank. For the built-in mock use `http://localhost:3000/api/bank` (the default); the planned real bank at `https://api-vybe.rtreerrtree.com` is not online yet. The client appends `/v1`.
-- `npm run db:seed` loads about 18 fictional products with three years of generated price history. It is safe to run again: products are upserted and existing history is kept.
-- Prices are simulated with a seeded random walk and move on a 5-minute grid when the bank is read. They are not real market prices.
-- Each user code starts with 10,000 USD of play cash, shared by all of that user's planning accounts. Orders and holdings are tagged with the planning account.
+- `BANK_API_URL` sets where the server finds the bank (default `http://localhost:3001`; the planned real bank is `https://api-vybe.rtreerrtree.com`). The client appends `/v1`, and a value that already ends in `/v1` also works.
+- Start the bank project and seed its catalog before using the invest features; this app has no seed step.
+- Cash is created by the bank on first access (50,000 USD in the bank project's defaults) and is shared by all of that user's planning accounts. Orders and holdings are tagged with the planning account.
 - There is no authentication beyond the user code: anyone who knows a code can act as that user. Reset on `/welcome` also deletes the user's bank data.

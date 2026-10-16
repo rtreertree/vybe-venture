@@ -1,45 +1,32 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Briefcase, Check, Eye, MessageCircle, Plus, Scale, Search, Sparkles } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { ArrowLeft, Briefcase, Check, Eye, MessageCircle, Plus, Scale, Sparkles } from "lucide-react";
 import { AccountPlanAdjustment } from "@/components/account-plan-adjustment";
 import { ProductCard, riskLabel, typeLabel } from "@/components/invest/product-card";
 import { formatPercent, formatUsd } from "@/components/invest/money";
 import { accountSlug, readAccounts, updateAccountRecord, type AccountRecord } from "@/libs/account-client";
-import { fetchAreas, fetchProduct, fetchProducts } from "@/libs/invest-client";
-import type { AreasResponse, ProductDetail, ProductListItem } from "@/libs/bank/types";
+import { fetchProduct, fetchRecommendations, type Recommendation } from "@/libs/invest-client";
+import type { ProductDetail } from "@/libs/bank/types";
 
 const MAX_SELECTIONS = 3;
 const focusRing = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
-const selectClass = `min-h-11 border border-primary/20 bg-white px-3 text-sm font-semibold ${focusRing}`;
 
 type Shortlist = AccountRecord["selectedProducts"];
 type Loadable<T> = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; data: T };
 
-function excludedTerms(value: string | null) {
-  return (value ?? "").split(/,|\band\b/i).map((term) => term.trim().toLowerCase()).filter((term) => term.length > 1);
-}
-
 function CreateAccountContent() {
   const pathname = usePathname();
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const [account, setAccount] = useState<AccountRecord | null>(null);
   const [accountLoadError, setAccountLoadError] = useState("");
   const [accountMissing, setAccountMissing] = useState(false);
   const [reloadAccount, setReloadAccount] = useState(0);
   const [isAdjustingPlan, setIsAdjustingPlan] = useState(false);
 
-  const [areas, setAreas] = useState<AreasResponse["areas"]>([]);
-  const [productResult, setProductResult] = useState<({ key: string } & Exclude<Loadable<ProductListItem[]>, { status: "loading" }>) | null>(null);
+  const [picksResult, setPicksResult] = useState<({ key: string } & Exclude<Loadable<Recommendation[]>, { status: "loading" }>) | null>(null);
   const [reloadProducts, setReloadProducts] = useState(0);
-  const area = searchParams.get("area") ?? "";
-  const type = searchParams.get("type") ?? "";
-  const risk = searchParams.get("risk") ?? "";
-  const urlQuery = searchParams.get("q") ?? "";
-  const [searchText, setSearchText] = useState(urlQuery);
 
   const [selected, setSelected] = useState<Shortlist>([]);
   const [savedSelection, setSavedSelection] = useState<Shortlist>([]);
@@ -49,17 +36,7 @@ function CreateAccountContent() {
 
   const accountName = account?.accountName ?? "your account";
   const goal = account?.goal ?? "your next financial goal";
-  const accountId = account?.id ?? null;
   const overviewHref = pathname.replace(/\/create\/?$/, "");
-
-  const setFilter = useCallback((changes: Record<string, string>) => {
-    const next = new URLSearchParams(searchParams.toString());
-    for (const [key, value] of Object.entries(changes)) {
-      if (value) next.set(key, value); else next.delete(key);
-    }
-    const text = next.toString();
-    router.replace(text ? `${pathname}?${text}` : pathname, { scroll: false });
-  }, [pathname, router, searchParams]);
 
   useEffect(() => {
     const timeout = window.setTimeout(async () => {
@@ -78,32 +55,22 @@ function CreateAccountContent() {
     return () => window.clearTimeout(timeout);
   }, [pathname, reloadAccount]);
 
+  const accountId = account?.id ?? null;
+  const picksKey = `${accountId}|${reloadProducts}`;
   useEffect(() => {
+    if (!accountId) return;
     let active = true;
-    void fetchAreas().then((result) => { if (active && result.ok) setAreas(result.data.areas); });
-    return () => { active = false; };
-  }, []);
-
-  useEffect(() => {
-    if (searchText === urlQuery) return;
-    const timeout = window.setTimeout(() => setFilter({ q: searchText.trim() }), 300);
-    return () => window.clearTimeout(timeout);
-  }, [searchText, urlQuery, setFilter]);
-
-  const productKey = `${area}|${type}|${risk}|${urlQuery}|${reloadProducts}`;
-  useEffect(() => {
-    let active = true;
-    void fetchProducts({ area, type, risk, q: urlQuery }).then((result) => {
+    void fetchRecommendations(accountId).then((result) => {
       if (!active) return;
-      setProductResult(result.ok
-        ? { key: productKey, status: "ready", data: result.data.products }
-        : { key: productKey, status: "error", message: result.message });
+      setPicksResult(result.ok
+        ? { key: picksKey, status: "ready", data: result.data.recommendations }
+        : { key: picksKey, status: "error", message: result.message });
     });
     return () => { active = false; };
-  }, [area, type, risk, urlQuery, productKey]);
-  const products = useMemo<Loadable<ProductListItem[]>>(
-    () => productResult && productResult.key === productKey ? productResult : { status: "loading" },
-    [productResult, productKey],
+  }, [accountId, picksKey]);
+  const products = useMemo<Loadable<Recommendation[]>>(
+    () => picksResult && picksResult.key === picksKey ? picksResult : { status: "loading" },
+    [picksResult, picksKey],
   );
 
   const selectedKey = selected.map((item) => item.symbol).join(",");
@@ -117,15 +84,8 @@ function CreateAccountContent() {
     return () => { active = false; };
   }, [selectedKey]);
 
-  const terms = useMemo(() => excludedTerms(account?.planning.excludedIndustries ?? null), [account]);
-  const isExcluded = useCallback((product: ProductListItem) => terms.some((term) => product.area.toLowerCase().includes(term)), [terms]);
-  const visible = useMemo(() => {
-    if (products.status !== "ready") return [];
-    return [...products.data].sort((a, b) => Number(isExcluded(a)) - Number(isExcluded(b)));
-  }, [products, isExcluded]);
-
   const isSelected = (symbol: string) => selected.some((item) => item.symbol === symbol);
-  const toggle = (product: Pick<ProductListItem, "symbol" | "name">) => {
+  const toggle = (product: Pick<Recommendation["product"], "symbol" | "name">) => {
     setSavedMessage("");
     setSelected((current) => {
       if (current.some((item) => item.symbol === product.symbol)) return current.filter((item) => item.symbol !== product.symbol);
@@ -149,7 +109,6 @@ function CreateAccountContent() {
   };
 
   const compared = selected.map((item) => ({ item, detail: details[item.symbol] }));
-  const filtersActive = Boolean(area || type || risk || urlQuery);
   const productLink = (symbol: string) => `/products/${encodeURIComponent(symbol)}${accountId ? `?account=${encodeURIComponent(accountId)}` : ""}`;
   const compareRows: [string, (detail: ProductDetail) => string][] = [
     ["Price", (d) => formatUsd(d.currentPrice)],
@@ -215,8 +174,8 @@ function CreateAccountContent() {
             <div className="flex flex-col gap-5 border-b border-primary/15 pb-6 md:flex-row md:items-end md:justify-between">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.12em] text-secondary">Product explorer</p>
-                <h2 className="mt-3 font-display text-3xl font-bold leading-tight sm:text-4xl">Options you can compare</h2>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-ink/70">Choose up to {MAX_SELECTIONS} to shortlist. Open any product for its price chart, facts and risks.</p>
+                <h2 className="mt-3 font-display text-3xl font-bold leading-tight sm:text-4xl">Options picked for you</h2>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-ink/70">Chosen from the bank&apos;s catalog to fit your profile and this account&apos;s plan. Shortlist up to {MAX_SELECTIONS}. Open any product for its price chart, facts and risks.</p>
               </div>
               <button type="button" disabled={!account || !selectionHasChanged} onClick={saveSelections} className={`inline-flex min-h-11 items-center justify-center gap-2 bg-growth px-4 text-sm font-semibold text-primary transition-colors hover:bg-growth/90 disabled:cursor-not-allowed disabled:opacity-40 ${focusRing}`}><Check className="h-4 w-4" aria-hidden /> Save shortlist</button>
             </div>
@@ -230,48 +189,21 @@ function CreateAccountContent() {
             {storageError && <p role="alert" className="mt-4 border border-risk/30 bg-risk/10 p-4 text-sm leading-6">{storageError}</p>}
             {savedMessage && <p role="status" className="mt-4 text-sm font-medium text-growth">{savedMessage}</p>}
 
-            <div className="mt-6 flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filter by area">
-              {[{ area: "", count: 0 }, ...areas].map((item) => (
-                <button key={item.area || "all"} type="button" aria-pressed={area === item.area} onClick={() => setFilter({ area: item.area })} className={`min-h-11 shrink-0 border px-4 text-sm font-semibold transition-colors ${focusRing} ${area === item.area ? "border-primary bg-primary text-white" : "border-primary/20 bg-white hover:border-primary/50"}`}>
-                  {item.area || "All"}
-                </button>
-              ))}
-            </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-center">
-              <label className="relative block">
-                <span className="sr-only">Search products</span>
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary/50" aria-hidden />
-                <input type="search" value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder="Search by name, symbol or topic" className={`min-h-11 w-full border border-primary/20 bg-white pl-9 pr-3 text-sm ${focusRing}`} />
-              </label>
-              <label className="block"><span className="sr-only">Product type</span>
-                <select value={type} onChange={(event) => setFilter({ type: event.target.value })} className={`${selectClass} w-full`}>
-                  <option value="">All types</option><option value="stock">Stocks</option><option value="fund">Funds</option><option value="bond">Bonds</option><option value="crypto">Crypto</option>
-                </select>
-              </label>
-              <label className="block"><span className="sr-only">Risk level</span>
-                <select value={risk} onChange={(event) => setFilter({ risk: event.target.value })} className={`${selectClass} w-full`}>
-                  <option value="">Any risk</option><option value="low">Lower risk</option><option value="medium">Medium risk</option><option value="high">Higher risk</option>
-                </select>
-              </label>
-              <button type="button" disabled={!filtersActive} onClick={() => { setSearchText(""); router.replace(pathname, { scroll: false }); }} className={`min-h-11 border border-primary/25 px-4 text-sm font-semibold hover:bg-primary/5 disabled:opacity-40 ${focusRing}`}>Clear filters</button>
-            </div>
-            {terms.length > 0 && <p className="mt-3 text-xs text-primary/60">Products in areas you asked to exclude are marked and listed last.</p>}
-
             {products.status === "loading" ? (
-              <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4" role="status" aria-label="Loading products">{[0, 1, 2, 3].map((item) => <div key={item} className="skeleton-block h-80" />)}</div>
+              <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4" role="status" aria-label="Choosing options for you">{[0, 1, 2, 3].map((item) => <div key={item} className="skeleton-block h-80" />)}</div>
             ) : products.status === "error" ? (
               <div className="mt-8 border border-risk/30 bg-risk/10 p-5">
                 <p role="alert" className="text-sm leading-6">{products.message}</p>
                 <button type="button" onClick={() => setReloadProducts((value) => value + 1)} className={`mt-4 min-h-11 border border-primary/25 px-4 text-sm font-semibold hover:bg-primary/5 ${focusRing}`}>Try again</button>
               </div>
-            ) : visible.length === 0 ? (
-              <p className="mt-8 border border-dashed border-primary/20 bg-white p-6 text-sm leading-6 text-primary/70">No products match these filters. Try a different area or clear the filters.</p>
+            ) : products.data.length === 0 ? (
+              <p className="mt-8 border border-dashed border-primary/20 bg-white p-6 text-sm leading-6 text-primary/70">No options fit your plan right now.</p>
             ) : (
               <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-                {visible.map((product) => {
+                {products.data.map(({ product, reason }) => {
                   const chosen = isSelected(product.symbol);
                   return (
-                    <ProductCard key={product.symbol} product={product} chosen={chosen} note={isExcluded(product) ? "Outside your preferences" : undefined}>
+                    <ProductCard key={product.symbol} product={product} chosen={chosen} note={reason}>
                       <Link href={productLink(product.symbol)} className={`inline-flex min-h-11 flex-1 items-center justify-center gap-2 border border-primary/25 px-3 text-sm font-semibold hover:bg-primary/5 ${focusRing}`}><Eye className="h-4 w-4" aria-hidden /> Details</Link>
                       <button type="button" aria-pressed={chosen} onClick={() => toggle(product)} className={`inline-flex min-h-11 flex-1 items-center justify-center gap-2 px-3 text-sm font-semibold ${focusRing} ${chosen ? "bg-growth text-primary" : "bg-accent text-primary hover:bg-accent/90"}`}>
                         {chosen ? <Check className="h-4 w-4" aria-hidden /> : <Plus className="h-4 w-4" aria-hidden />}{chosen ? "Shortlisted" : "Shortlist"}

@@ -10,6 +10,7 @@ import type {
   OrderSide,
   Portfolio,
   ProductDetail,
+  ProductListItem,
   ProductsResponse,
 } from "@/libs/bank/types";
 import { tokenHeaders } from "@/libs/user-token";
@@ -48,6 +49,9 @@ export const fetchProducts = (filters: ProductQuery = {}) => request<ProductsRes
 export const fetchProduct = (symbol: string) => request<ProductDetail>(`/products/${encodeURIComponent(symbol)}`);
 export const fetchProductHistory = (symbol: string, range: ChartRange) =>
   request<ChartSeries>(`/products/${encodeURIComponent(symbol)}/history${query({ range })}`);
+export type Recommendation = { product: ProductListItem; reason: string };
+export const fetchRecommendations = (accountRef: string) =>
+  request<{ recommendations: Recommendation[] }>("/recommend", { method: "POST", body: { accountRef }, auth: true });
 export const fetchAreas = () => request<AreasResponse>("/areas");
 export const fetchPortfolio = (accountRef?: string) => request<Portfolio>(`/portfolio${query({ accountRef })}`, { auth: true });
 export const fetchPortfolioHistory = (range: ChartRange, accountRef?: string) =>

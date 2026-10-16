@@ -32,7 +32,7 @@ One user has **one cash balance** but can have several planning accounts in the 
 /v1
 ```
 
-In this app the mock bank is served at `/api/bank/v1`, and the app reaches it through `BANK_API_URL`.
+The bank is a separate service (the `vybe-venture-bank` project), and the app reaches it through `BANK_API_URL`.
 
 ## Endpoints
 

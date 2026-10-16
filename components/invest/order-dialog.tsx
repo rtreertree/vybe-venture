@@ -155,8 +155,8 @@ export function OrderDialog({ product, side: initialSide, accountRef, accountNam
   const showError = touched && "error" in parsed;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end bg-primary/55 p-0 sm:items-center sm:justify-center sm:p-4" onKeyDown={onKeyDown}>
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="max-h-dvh w-full max-w-md overflow-y-auto bg-white p-5 shadow-2xl sm:p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-primary/55 p-4" onKeyDown={onKeyDown}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto bg-white p-5 shadow-2xl sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.12em] text-secondary">{step === "done" ? "Order filled" : step === "review" ? "Review your order" : "New order"}</p>
