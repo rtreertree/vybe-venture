@@ -1,4 +1,5 @@
 import { getOpenAiClient } from "@/libs/openai";
+import { sameOrigin } from "@/libs/user-data-server";
 import type { ChatMessage } from "@/libs/chat-shared";
 import { isAccountPlanning, isRecord } from "@/libs/account-model";
 import { readJsonBody } from "@/libs/request-json";
@@ -16,9 +17,7 @@ function cleanText(value: unknown, maxLength: number) {
 }
 
 function allowRequest(req: Request) {
-  const requestUrl = new URL(req.url);
-  const origin = req.headers.get("origin");
-  if (origin && origin !== requestUrl.origin) return false;
+  if (!sameOrigin(req)) return false;
 
   const now = Date.now();
   if (recentRequests.size > 5_000) {

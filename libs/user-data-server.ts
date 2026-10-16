@@ -8,7 +8,16 @@ export function requestedToken(request: Request) {
 
 export function sameOrigin(request: Request) {
   const origin = request.headers.get("origin");
-  return !origin || origin === new URL(request.url).origin;
+  if (!origin) return true;
+  const url = new URL(request.url);
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? url.host;
+  const proto = request.headers.get("x-forwarded-proto") ?? url.protocol.replace(":", "");
+  try {
+    const o = new URL(origin);
+    return o.host === host.split(",")[0].trim() && o.protocol === `${proto.split(",")[0].trim()}:`;
+  } catch {
+    return false;
+  }
 }
 
 export async function existingUser(request: Request) {

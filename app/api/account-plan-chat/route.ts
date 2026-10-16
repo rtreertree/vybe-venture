@@ -1,4 +1,5 @@
 import { getOpenAiClient } from "@/libs/openai";
+import { sameOrigin } from "@/libs/user-data-server";
 import {
   isAccountPlanDraft,
   isPersonalProfile,
@@ -69,9 +70,7 @@ const responseSchema = {
 } as const;
 
 function allowRequest(req: Request) {
-  const requestUrl = new URL(req.url);
-  const origin = req.headers.get("origin");
-  if (origin && origin !== requestUrl.origin) return false;
+  if (!sameOrigin(req)) return false;
 
   const now = Date.now();
   if (recentRequests.size > 5_000) {

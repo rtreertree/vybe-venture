@@ -1,4 +1,5 @@
 import { getOpenAiClient } from "@/libs/openai";
+import { sameOrigin } from "@/libs/user-data-server";
 
 const BRIEF_SCHEMA = {
   type: "object",
@@ -30,9 +31,7 @@ let cachedBrief: { brief: EconomicBrief; expiresAt: number } | null = null;
 let pendingBrief: Promise<EconomicBrief> | null = null;
 
 function allowRequest(request: Request) {
-  const requestUrl = new URL(request.url);
-  const origin = request.headers.get("origin");
-  if (origin && origin !== requestUrl.origin) return false;
+  if (!sameOrigin(request)) return false;
 
   const client = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
   const now = Date.now();
